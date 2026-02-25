@@ -6,70 +6,35 @@ const supabase = createClient(
 );
 
 export async function getAnalyticsData(days: number) {
-  const fromDate = new Date();
-  fromDate.setDate(fromDate.getDate() - days);
+  const { data, error } = await supabase.rpc(
+    "analytics_summary",
+    { days }
+  );
 
-  const { data } = await supabase
-    .from("candidates")
-    .select("id,name,email,status,final_score,ai_result,created_at")
-    .gte("created_at", fromDate.toISOString())
-    .order("created_at", { ascending: true });
-
-  const candidates = data || [];
-
-  let cumulative = 0;
-  const grouped: any = {};
-
-  candidates.forEach((c) => {
-    const date = new Date(c.created_at)
-      .toISOString()
-      .split("T")[0];
-
-    if (!grouped[date]) {
-      grouped[date] = {
-        date,
-        count: 0,
-        totalScore: 0,
-      };
-    }
-
-    grouped[date].count++;
-    grouped[date].totalScore += Number(c.final_score || 0);
-  });
-
-  const growth = Object.values(grouped).map((d: any) => {
-    cumulative += d.count;
+  if (error) {
+    console.error("RPC Error:", error);
     return {
-      date: d.date.slice(5),
-      count: d.count,
-      cumulative,
-      avgScore:
-        d.count > 0
-          ? (d.totalScore / d.count).toFixed(1)
-          : 0,
+      growth: [],
+      funnelData: [],
+      conversionRate: 0,
+      top5: [],
     };
-  });
+  }
 
-  const hired = candidates.filter((c) => c.status === "Hired").length;
-  const pending = candidates.filter((c) => c.status === "Pending").length;
-
-  const conversionRate =
-    candidates.length > 0
-      ? ((hired / candidates.length) * 100).toFixed(1)
-      : 0;
-
-  const top5 = [...candidates]
-    .sort((a, b) => b.final_score - a.final_score)
-    .slice(0, 5);
+  // 🔥 Proper normalization
+  const normalizedGrowth =
+    (data?.growth || []).map((item: any) => ({
+      date: item.date,
+      count: Number(item.count),
+      cumulative: Number(item.cumulative),
+      avgScore: Number(item.avgScore ?? item.avg_score ?? 0),
+    }));
 
   return {
-    growth,
-    funnelData: [
-      { name: "Total", value: candidates.length },
-      { name: "Pending", value: pending },
-      { name: "Hired", value: hired },
-    ],
-    conversionRate,
-    top5,
-  };
+  growth: normalizedGrowth,
+  funnelData: data?.funnel || [],
+  scoreDistribution: data?.scoreDistribution || [],
+  conversionRate: data?.conversionRate || 0,
+  top5: data?.top5 || [],
+};
 }

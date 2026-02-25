@@ -1,16 +1,20 @@
 import { getAnalyticsData } from "@/app/lib/serverAnalytics";
 import AnalyticsClient from "./AnalyticsClient";
 
-export const revalidate = 60; // Edge caching (Next.js ISR)
+export const revalidate = 60;
 
 export default async function AnalyticsPage({
   searchParams,
-}: {
-  searchParams: { days?: string };
-}) {
-  const days = Number(searchParams.days || 30);
+}: any) {
+  const parsed = parseInt(searchParams?.days as string);
+  const days = isNaN(parsed) ? 30 : parsed;
 
   const data = await getAnalyticsData(days);
 
-  return <AnalyticsClient initialData={data} days={days} />;
+  return (
+    <AnalyticsClient
+      initialData={data}
+      days={days}
+    />
+  );
 }
