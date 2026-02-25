@@ -22,85 +22,46 @@ export async function POST(req) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-
     const data = await pdf(buffer);
     const cvText = data.text;
 
-    const prompt = `
-You are an AI HR evaluation engine.
+    // 1️⃣ Insert candidate first
+    const { data: candidate, error: insertError } =
+      await supabase
+        .from("candidates")
+        .insert([
+          {
+            name,
+            email,
+            cv_text: cvText,
+            answers: assessment,
+            status: "Processing"
+          },
+        ])
+        .select()
+        .single();
 
-Return ONLY valid JSON in this exact format:
-
-{
-  "skillsScore": number,
-  "experienceScore": number,
-  "assessmentScore": number,
-  "finalScore": number,
-  "strengths": [string, string, string],
-  "weaknesses": [string, string],
-  "recommendation": "Strong Hire | Hire | Consider | Reject",
-  "summary": string
-}
-
-Rules:
-- finalScore = (skillsScore * 0.3) + (experienceScore * 0.4) + (assessmentScore * 0.3)
-- No explanations outside JSON.
-- No markdown.
-- Only pure JSON.
-
-Target Role: Frontend Developer
-
-CV:
-${cvText}
-
-Assessment:
-${assessment}
-`;
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-        }),
-      }
-    );
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(JSON.stringify(result));
+    if (insertError) {
+      throw new Error(insertError.message);
     }
 
-    const rawText =
-      result.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    // 2️⃣ Insert AI job
+    const { error: jobError } = await supabase
+      .from("ai_jobs")
+      .insert([
+        {
+          candidate_id: candidate.id,
+        },
+      ]);
 
-    const cleaned = rawText.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(cleaned);
-
-    // 🔥 هنا بنخزن البيانات في Supabase
-    const { data: insertData, error: insertError } =
-  await supabase.from("candidates").insert([
-    {
-      name: name,
-      email: email,
-      cv_text: cvText,
-      answers: assessment,
-      ai_result: parsed,
-      final_score: parsed.finalScore,
-    },
-  ]);
-
-if (insertError) {
-  console.error("INSERT ERROR:", insertError);
-  throw new Error(insertError.message);
-}
+    if (jobError) {
+      throw new Error(jobError.message);
+    }
 
     return Response.json({
-      result: parsed,
+      message: "Application submitted successfully. AI evaluation in progress.",
     });
+
   } catch (error) {
     console.error("API ERROR:", error);
     return new Response(
