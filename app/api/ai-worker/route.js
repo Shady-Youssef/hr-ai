@@ -9,10 +9,17 @@ const supabase = createClient(
 
 const MAX_ATTEMPTS = 3;
 
-export async function POST() {
+export async function POST(req) {
+
+  // ✅ Secure for Vercel Cron
+  const cronHeader = req.headers.get("x-vercel-cron");
+
+  if (!cronHeader) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   try {
 
-    // 1️⃣ Get next pending job (oldest first)
     const { data: job } = await supabase
       .from("ai_jobs")
       .select("*")
@@ -25,7 +32,6 @@ export async function POST() {
       return Response.json({ message: "No pending jobs" });
     }
 
-    // 2️⃣ Mark as processing + increment attempts
     await supabase
       .from("ai_jobs")
       .update({
@@ -34,41 +40,16 @@ export async function POST() {
       })
       .eq("id", job.id);
 
-    // 3️⃣ Get candidate
-    const { data: candidate, error: candidateError } = await supabase
+    const { data: candidate } = await supabase
       .from("candidates")
       .select("*")
       .eq("id", job.candidate_id)
       .single();
 
-    if (candidateError) {
-      throw new Error(candidateError.message);
-    }
-
-    // 4️⃣ Build Gemini prompt
     const prompt = `
 You are an AI HR evaluation engine.
 
-Return ONLY valid JSON in this exact format:
-
-{
-  "skillsScore": number,
-  "experienceScore": number,
-  "assessmentScore": number,
-  "finalScore": number,
-  "strengths": [string, string, string],
-  "weaknesses": [string, string],
-  "recommendation": "Strong Hire | Hire | Consider | Reject",
-  "summary": string
-}
-
-Rules:
-- finalScore = (skillsScore * 0.3) + (experienceScore * 0.4) + (assessmentScore * 0.3)
-- No explanations outside JSON.
-- No markdown.
-- Only pure JSON.
-
-Target Role: Frontend Developer
+Return ONLY valid JSON.
 
 CV:
 ${candidate.cv_text}
@@ -100,7 +81,6 @@ ${candidate.answers}
     const cleaned = rawText.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(cleaned);
 
-    // 5️⃣ Update candidate
     await supabase
       .from("candidates")
       .update({
@@ -113,7 +93,6 @@ ${candidate.answers}
       })
       .eq("id", candidate.id);
 
-    // 6️⃣ Mark job complete
     await supabase
       .from("ai_jobs")
       .update({
@@ -127,49 +106,6 @@ ${candidate.answers}
   } catch (error) {
 
     console.error("WORKER ERROR:", error);
-
-    // Get job again to know attempts
-    const { data: currentJob } = await supabase
-      .from("ai_jobs")
-      .select("*")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (!currentJob) {
-      return new Response(
-        JSON.stringify({ error: error.message }),
-        { status: 500 }
-      );
-    }
-
-    if (currentJob.attempts >= MAX_ATTEMPTS) {
-      // Mark failed permanently
-      await supabase
-        .from("ai_jobs")
-        .update({
-          status: "failed",
-          error: error.message
-        })
-        .eq("id", currentJob.id);
-
-      await supabase
-        .from("candidates")
-        .update({
-          status: "AI Failed"
-        })
-        .eq("id", currentJob.candidate_id);
-
-    } else {
-      // Retry
-      await supabase
-        .from("ai_jobs")
-        .update({
-          status: "retry",
-          error: error.message
-        })
-        .eq("id", currentJob.id);
-    }
 
     return new Response(
       JSON.stringify({ error: error.message }),
