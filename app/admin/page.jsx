@@ -49,6 +49,7 @@ export default function AdminQuestions() {
   };
 
   return (
+    
     <div style={{ padding: 40 }}>
       <h1>CSM Question Manager</h1>
 

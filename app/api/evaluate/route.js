@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 export async function POST(req) {
@@ -81,16 +81,22 @@ ${assessment}
     const parsed = JSON.parse(cleaned);
 
     // 🔥 هنا بنخزن البيانات في Supabase
-    await supabase.from("candidates").insert([
-      {
-        name: name,
-        email: email,
-        cv_text: cvText,
-        answers: assessment,
-        ai_result: parsed,
-        final_score: parsed.finalScore,
-      },
-    ]);
+    const { data: insertData, error: insertError } =
+  await supabase.from("candidates").insert([
+    {
+      name: name,
+      email: email,
+      cv_text: cvText,
+      answers: assessment,
+      ai_result: parsed,
+      final_score: parsed.finalScore,
+    },
+  ]);
+
+if (insertError) {
+  console.error("INSERT ERROR:", insertError);
+  throw new Error(insertError.message);
+}
 
     return Response.json({
       result: parsed,

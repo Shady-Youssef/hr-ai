@@ -1,4 +1,7 @@
 "use client";
+import { Container } from "../components/ContainerComponent";
+import { Card } from "../components/CardComponent";
+import { Button } from "../components/ButtonComponent";
 
 import { useState } from "react";
 import { supabase } from "../../app/lib/supabase";
@@ -22,24 +25,33 @@ export default function Login() {
     }
   };
 
-  return (
-    <div style={{ padding: 40 }}>
-      <h1>CSM Login</h1>
+    return (
+    <Container>
+      <div className="flex justify-center items-center min-h-[70vh]">
+        <Card>
+          <h1 className="text-2xl font-bold mb-6">
+            CSM Login
+          </h1>
 
-      <input
-        placeholder="Email"
-        onChange={(e) => setEmail(e.target.value)}
-        style={{ display: "block", marginBottom: 10 }}
-      />
+          <input
+            placeholder="Email"
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full mb-4 p-3 rounded border border-border dark:border-border-dark bg-transparent"
+          />
 
-      <input
-        type="password"
-        placeholder="Password"
-        onChange={(e) => setPassword(e.target.value)}
-        style={{ display: "block", marginBottom: 10 }}
-      />
+          <input
+            type="password"
+            placeholder="Password"
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full mb-6 p-3 rounded border border-border dark:border-border-dark bg-transparent"
+          />
 
-      <button onClick={handleLogin}>Login</button>
-    </div>
+          <Button onClick={handleLogin}>
+            Login
+          </Button>
+        </Card>
+      </div>
+    </Container>
   );
+
 }

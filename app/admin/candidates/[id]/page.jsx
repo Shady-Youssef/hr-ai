@@ -7,20 +7,42 @@ import { useParams } from "next/navigation";
 export default function CandidateDetails() {
   const { id } = useParams();
   const [candidate, setCandidate] = useState(null);
+  const [note, setNote] = useState("");
+
+  const fetchCandidate = async () => {
+    const { data, error } = await supabase
+      .from("candidates")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (!error) {
+      setCandidate(data);
+      setNote(data.internal_notes || "");
+    }
+  };
 
   useEffect(() => {
-    const fetchCandidate = async () => {
-      const { data, error } = await supabase
-        .from("candidates")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-      if (!error) setCandidate(data);
-    };
-
     if (id) fetchCandidate();
   }, [id]);
+
+  const updateStatus = async (newStatus) => {
+    await supabase
+      .from("candidates")
+      .update({ status: newStatus, updated_at: new Date() })
+      .eq("id", candidate.id);
+
+    fetchCandidate();
+  };
+
+  const saveNote = async () => {
+    await supabase
+      .from("candidates")
+      .update({ internal_notes: note, updated_at: new Date() })
+      .eq("id", candidate.id);
+
+    alert("Note saved");
+  };
 
   if (!candidate) return <p style={{ padding: 40 }}>Loading...</p>;
 
@@ -29,6 +51,35 @@ export default function CandidateDetails() {
   return (
     <div style={{ padding: 40 }}>
       <h1>Candidate Details</h1>
+
+      <h3>Status:</h3>
+      <p>{candidate.status}</p>
+
+      <button onClick={() => updateStatus("Shortlisted")}>
+        Shortlist
+      </button>
+
+      <button onClick={() => updateStatus("Rejected")}>
+        Reject
+      </button>
+
+      <button onClick={() => updateStatus("Hired")}>
+        Hire
+      </button>
+
+      <hr style={{ margin: "30px 0" }} />
+
+      <h3>Internal Notes:</h3>
+      <textarea
+        rows={5}
+        style={{ width: "100%" }}
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+      />
+      <br />
+      <button onClick={saveNote}>Save Note</button>
+
+      <hr style={{ margin: "30px 0" }} />
 
       <h3>Name:</h3>
       <p>{candidate.name}</p>
