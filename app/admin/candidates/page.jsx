@@ -10,10 +10,12 @@ export default function CandidatesDashboard() {
   const [candidates, setCandidates] = useState([]);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("All");
-  const [minScore, setMinScore] = useState(0);
+  const [minScore, setMinScore] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [recommendationFilter, setRecommendationFilter] = useState("All");
-  const [sortField, setSortField] = useState("final_score");
+
+  // ✅ No default UI sorting
+  const [sortField, setSortField] = useState(null);
   const [sortDirection, setSortDirection] = useState("desc");
 
   const itemsPerPage = 10;
@@ -42,9 +44,11 @@ export default function CandidatesDashboard() {
   }, []);
 
   const fetchCandidates = async () => {
+    // ✅ Default order by newest first (created_at desc)
     const { data } = await supabase
       .from("candidates")
-      .select("*");
+      .select("*")
+      .order("created_at", { ascending: false });
 
     setCandidates(data || []);
   };
@@ -97,16 +101,18 @@ export default function CandidatesDashboard() {
     }
   };
 
-  // 🔥 Updated Date + Time + Timezone
   const formatDate = (date) => {
-    const d = new Date(date);
+    const formatted = new Date(date).toLocaleString("en-GB", {
+      timeZone: "Africa/Cairo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
 
-    const formattedDate = d.toLocaleDateString();
-    const formattedTime = d.toLocaleTimeString();
-
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-    return `${formattedDate} ${formattedTime} (${timeZone})`;
+    return `${formatted} (Africa/Cairo)`;
   };
 
   const filteredCandidates = candidates.filter((c) => {
@@ -114,7 +120,7 @@ export default function CandidatesDashboard() {
       statusFilter === "All" || c.status === statusFilter;
 
     const matchesScore =
-      Number(c.final_score) >= Number(minScore);
+  minScore === "" || Number(c.final_score) >= Number(minScore);
 
     const matchesSearch =
       c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -183,7 +189,6 @@ export default function CandidatesDashboard() {
           </button>
         )}
 
-        {/* Filters (unchanged) */}
         <div className="flex flex-col lg:flex-row gap-4 mb-6">
 
           <input
