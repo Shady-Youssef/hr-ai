@@ -9,7 +9,14 @@ import { Card } from "../../components/CardComponent";
 export default function CandidatesDashboard() {
   const [candidates, setCandidates] = useState([]);
   const [page, setPage] = useState(1);
-  const itemsPerPage = 5;
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [minScore, setMinScore] = useState(0);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [recommendationFilter, setRecommendationFilter] = useState("All");
+  const [sortField, setSortField] = useState("final_score");
+  const [sortDirection, setSortDirection] = useState("desc");
+
+  const itemsPerPage = 10;
 
   useEffect(() => {
     fetchCandidates();
@@ -23,8 +30,7 @@ export default function CandidatesDashboard() {
           schema: "public",
           table: "candidates",
         },
-        (payload) => {
-          console.log("Realtime change:", payload);
+        () => {
           fetchCandidates();
         }
       )
@@ -38,13 +44,36 @@ export default function CandidatesDashboard() {
   const fetchCandidates = async () => {
     const { data } = await supabase
       .from("candidates")
-      .select("*")
-      .order("final_score", { ascending: false });
+      .select("*");
 
     setCandidates(data || []);
   };
 
-  // 🎨 Score Heat Coloring
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const clearSorting = () => {
+    setSortField(null);
+  };
+
+  const renderSortIcon = (field) => {
+    if (sortField !== field) {
+      return <span className="ml-2 text-gray-400 text-xs">⇅</span>;
+    }
+
+    return sortDirection === "asc" ? (
+      <span className="ml-2 text-blue-500 text-xs">↑</span>
+    ) : (
+      <span className="ml-2 text-blue-500 text-xs">↓</span>
+    );
+  };
+
   const getScoreColor = (score) => {
     if (score >= 85) return "text-green-600 dark:text-green-400";
     if (score >= 70) return "text-yellow-600 dark:text-yellow-400";
@@ -52,7 +81,6 @@ export default function CandidatesDashboard() {
     return "text-red-600 dark:text-red-400";
   };
 
-  // 🎨 Status Badge Colors
   const getStatusBadge = (status) => {
     const base =
       "px-3 py-1 rounded-full text-xs font-semibold inline-block";
@@ -69,8 +97,65 @@ export default function CandidatesDashboard() {
     }
   };
 
-  const totalPages = Math.ceil(candidates.length / itemsPerPage);
-  const paginated = candidates.slice(
+  // 🔥 Updated Date + Time + Timezone
+  const formatDate = (date) => {
+    const d = new Date(date);
+
+    const formattedDate = d.toLocaleDateString();
+    const formattedTime = d.toLocaleTimeString();
+
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    return `${formattedDate} ${formattedTime} (${timeZone})`;
+  };
+
+  const filteredCandidates = candidates.filter((c) => {
+    const matchesStatus =
+      statusFilter === "All" || c.status === statusFilter;
+
+    const matchesScore =
+      Number(c.final_score) >= Number(minScore);
+
+    const matchesSearch =
+      c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.email?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesRecommendation =
+      recommendationFilter === "All" ||
+      c.ai_result?.recommendation === recommendationFilter;
+
+    return (
+      matchesStatus &&
+      matchesScore &&
+      matchesSearch &&
+      matchesRecommendation
+    );
+  });
+
+  const sortedCandidates = sortField
+    ? [...filteredCandidates].sort((a, b) => {
+        let valueA;
+        let valueB;
+
+        if (sortField === "recommendation") {
+          valueA = a.ai_result?.recommendation || "";
+          valueB = b.ai_result?.recommendation || "";
+        } else {
+          valueA = a[sortField];
+          valueB = b[sortField];
+        }
+
+        if (valueA < valueB) return sortDirection === "asc" ? -1 : 1;
+        if (valueA > valueB) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      })
+    : filteredCandidates;
+
+  const totalPages = Math.ceil(
+    sortedCandidates.length / itemsPerPage
+  );
+
+  const paginated = sortedCandidates.slice(
     (page - 1) * itemsPerPage,
     page * itemsPerPage
   );
@@ -79,7 +164,6 @@ export default function CandidatesDashboard() {
     <Container>
       <Card>
 
-        {/* Export Button */}
         <a href="/api/export">
           <button className="mb-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
             Export CSV
@@ -90,18 +174,91 @@ export default function CandidatesDashboard() {
           Candidates
         </h1>
 
-        {/* Responsive Table Wrapper */}
+        {sortField && (
+          <button
+            onClick={clearSorting}
+            className="mb-4 text-sm text-red-500 hover:underline"
+          >
+            ✕ Clear Sorting
+          </button>
+        )}
+
+        {/* Filters (unchanged) */}
+        <div className="flex flex-col lg:flex-row gap-4 mb-6">
+
+          <input
+            type="text"
+            placeholder="Search by name or email..."
+            value={searchTerm}
+            onChange={(e) => {
+              setPage(1);
+              setSearchTerm(e.target.value);
+            }}
+            className="p-2 border rounded w-full lg:w-1/3 dark:bg-gray-800 dark:border-gray-600"
+          />
+
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setPage(1);
+              setStatusFilter(e.target.value);
+            }}
+            className="p-2 border rounded dark:bg-gray-800 dark:border-gray-600"
+          >
+            <option value="All">All Status</option>
+            <option value="Pending">Pending</option>
+            <option value="Shortlisted">Shortlisted</option>
+            <option value="Hired">Hired</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+
+          <select
+            value={recommendationFilter}
+            onChange={(e) => {
+              setPage(1);
+              setRecommendationFilter(e.target.value);
+            }}
+            className="p-2 border rounded dark:bg-gray-800 dark:border-gray-600"
+          >
+            <option value="All">All Recommendations</option>
+            <option value="Strong Hire">Strong Hire</option>
+            <option value="Hire">Hire</option>
+            <option value="Consider">Consider</option>
+            <option value="Reject">Reject</option>
+          </select>
+
+          <input
+            type="number"
+            placeholder="Minimum Score"
+            value={minScore}
+            onChange={(e) => {
+              setPage(1);
+              setMinScore(e.target.value);
+            }}
+            className="p-2 border rounded dark:bg-gray-800 dark:border-gray-600"
+          />
+        </div>
+
         <div className="overflow-x-auto rounded-xl shadow border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
 
-          <table className="min-w-[700px] w-full text-left">
+          <table className="min-w-[900px] w-full text-left">
 
             <thead className="bg-gray-200 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700">
               <tr>
                 <th className="p-4">Name</th>
                 <th className="p-4">Email</th>
-                <th className="p-4">Score</th>
-                <th className="p-4">Recommendation</th>
-                <th className="p-4">Status</th>
+                <th onClick={() => handleSort("final_score")} className="p-4 cursor-pointer select-none">
+                  Score {renderSortIcon("final_score")}
+                </th>
+                <th onClick={() => handleSort("recommendation")} className="p-4 cursor-pointer select-none">
+                  Recommendation {renderSortIcon("recommendation")}
+                </th>
+                <th onClick={() => handleSort("status")} className="p-4 cursor-pointer select-none">
+                  Status {renderSortIcon("status")}
+                </th>
+                <th onClick={() => handleSort("created_at")} className="p-4 cursor-pointer select-none">
+                  Date {renderSortIcon("created_at")}
+                </th>
                 <th className="p-4">Details</th>
               </tr>
             </thead>
@@ -113,29 +270,23 @@ export default function CandidatesDashboard() {
                   className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200"
                 >
                   <td className="p-4 font-medium">{c.name}</td>
-
                   <td className="p-4 text-sm text-gray-600 dark:text-gray-400">
                     {c.email}
                   </td>
-
-                  <td
-                    className={`p-4 font-bold ${getScoreColor(
-                      c.final_score
-                    )}`}
-                  >
+                  <td className={`p-4 font-bold ${getScoreColor(c.final_score)}`}>
                     {c.final_score}
                   </td>
-
                   <td className="p-4">
                     {c.ai_result?.recommendation}
                   </td>
-
                   <td className="p-4">
                     <span className={getStatusBadge(c.status)}>
                       {c.status || "Pending"}
                     </span>
                   </td>
-
+                  <td className="p-4 text-sm text-gray-500">
+                    {formatDate(c.created_at)}
+                  </td>
                   <td className="p-4">
                     <Link
                       href={`/admin/candidates/${c.id}`}
@@ -151,7 +302,6 @@ export default function CandidatesDashboard() {
           </table>
         </div>
 
-        {/* Pagination */}
         <div className="flex justify-center items-center gap-4 mt-6 flex-wrap">
           <button
             disabled={page === 1}
@@ -162,7 +312,7 @@ export default function CandidatesDashboard() {
           </button>
 
           <span className="text-sm">
-            Page {page} of {totalPages}
+            Page {page} of {totalPages || 1}
           </span>
 
           <button
