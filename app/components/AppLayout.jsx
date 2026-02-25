@@ -10,33 +10,65 @@ export default function AppLayout({ children }) {
   const [role, setRole] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profile, setProfile] = useState(null);
 
   const pathname = usePathname();
 
   useEffect(() => {
-    const init = async () => {
-      const { data: userData } = await supabase.auth.getUser();
+  let isMounted = true;
 
-      if (!userData.user) {
+  const loadUserData = async (session) => {
+    if (!session?.user) {
+      if (isMounted) {
+        setRole(null);
+        setProfile(null);
         setLoading(false);
-        return;
       }
+      return;
+    }
 
+    try {
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("id", userData.user.id)
+        .eq("id", session.user.id)
         .single();
 
-      if (roleData?.role) {
-        setRole(roleData.role);
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("first_name, avatar_url")
+        .eq("id", session.user.id)
+        .single();
+
+      if (isMounted) {
+        if (roleData?.role) setRole(roleData.role);
+        if (profileData) setProfile(profileData);
+        setLoading(false);
       }
 
-      setLoading(false);
-    };
+    } catch (err) {
+      console.error(err);
+      if (isMounted) setLoading(false);
+    }
+  };
 
-    init();
-  }, []);
+  // Listen for auth changes
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    loadUserData(session);
+  });
+
+  // Fallback: ensure loading never hangs
+  setTimeout(() => {
+    if (isMounted) setLoading(false);
+  }, 3000);
+
+  return () => {
+    isMounted = false;
+    subscription.unsubscribe();
+  };
+}, []);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -49,7 +81,7 @@ export default function AppLayout({ children }) {
   };
 
   const showNav =
-    role === "admin" || pathname.startsWith("/admin");
+    role === "admin" || pathname.startsWith("/admin") || !!role;
 
   const navItem = (path, label) => (
     <Link
@@ -104,22 +136,46 @@ export default function AppLayout({ children }) {
                 </span>
               )}
 
+              {/* First Name Display */}
+              {profile?.first_name && (
+                <span className="hidden md:block text-sm font-medium text-gray-300">
+                  {profile.first_name}
+                </span>
+              )}
+
               <div className="relative">
                 <button
                   onClick={() => setProfileOpen(!profileOpen)}
-                  className="w-9 h-9 rounded-full bg-gray-700 hover:bg-gray-600 transition flex items-center justify-center"
+                  className="w-9 h-9 rounded-full bg-gray-700 hover:bg-gray-600 transition flex items-center justify-center overflow-hidden cursor-pointer"
                 >
-                  👤
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt="avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span>👤</span>
+                  )}
                 </button>
 
                 {profileOpen && (
-                  <div className="absolute right-0 mt-2 w-40 bg-[#1f2937] border border-gray-700 rounded-xl shadow-xl p-2 animate-fadeIn">
+                  <div className="absolute right-0 mt-2 w-44 bg-[#1f2937] border border-gray-700 rounded-xl shadow-xl p-2 animate-fadeIn">
+
+                    <Link
+                      href="/profile"
+                      className="block px-3 py-2 rounded-md hover:bg-gray-700 transition text-sm"
+                    >
+                      Profile Settings
+                    </Link>
+
                     <button
                       onClick={logout}
                       className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-700 transition text-sm"
                     >
                       Logout
                     </button>
+
                   </div>
                 )}
               </div>
@@ -144,6 +200,13 @@ export default function AppLayout({ children }) {
               {navItem("/admin", "Admin")}
               {navItem("/admin/candidates", "Candidates")}
               {navItem("/admin/analytics", "Analytics")}
+
+              <Link
+                href="/profile"
+                className="text-left text-sm text-gray-300"
+              >
+                Profile Settings
+              </Link>
 
               <button
                 onClick={logout}
