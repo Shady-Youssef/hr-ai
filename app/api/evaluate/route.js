@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 
 import pdf from "pdf-parse-fixed";
 import { createClient } from "@supabase/supabase-js";
-import { processNextJob } from "../lib/aiProcessor";
+import { processNextJob } from "../../lib/aiProcessor";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
