@@ -86,10 +86,12 @@ ${candidate.answers}
         throw new Error("Invalid JSON from AI");
       }
 
-      const finalScore = parsed?.finalScore ?? parsed?.final_score;
-      const recommendation = parsed?.recommendation;
+      const finalScore =
+        parsed?.finalScore ?? parsed?.final_score;
 
-      // 🚨 أهم سطر في النظام كله
+      const recommendation =
+        parsed?.recommendation;
+
       if (
         typeof finalScore !== "number" ||
         !recommendation
@@ -121,13 +123,34 @@ ${candidate.answers}
 
       const attempts = (job.attempts || 0) + 1;
 
+      const rawErrorMessage = error?.message || "";
+
+      const isQuotaExceeded =
+        rawErrorMessage.includes("429") ||
+        rawErrorMessage.includes("RESOURCE_EXHAUSTED") ||
+        rawErrorMessage.includes("quota");
+
+      const finalErrorMessage = isQuotaExceeded
+        ? "AI quota exceeded"
+        : rawErrorMessage;
+
       await supabase
         .from("ai_jobs")
         .update({
           status: attempts >= MAX_ATTEMPTS ? "failed" : "retry",
-          error: error.message,
+          error: finalErrorMessage,
         })
         .eq("id", job.id);
+
+      // 👇 مهم جداً — لو الكوتا خلصت نرجع الحالة Pending
+      if (isQuotaExceeded) {
+        await supabase
+          .from("candidates")
+          .update({
+            status: "Pending",
+          })
+          .eq("id", job.candidate_id);
+      }
 
       console.error("PROCESSOR ERROR:", error);
     }
