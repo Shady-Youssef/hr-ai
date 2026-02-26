@@ -74,7 +74,7 @@ ${candidate.answers}
       }
 
       const rawText =
-        result.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+        result.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
       const cleaned = rawText.replace(/```json|```/g, "").trim();
 
@@ -86,13 +86,16 @@ ${candidate.answers}
         throw new Error("Invalid JSON from AI");
       }
 
-      const finalScore =
-        parsed.finalScore ??
-        parsed.final_score ??
-        0;
+      const finalScore = parsed?.finalScore ?? parsed?.final_score;
+      const recommendation = parsed?.recommendation;
 
-      const recommendation =
-        parsed.recommendation ?? "Reject";
+      // 🚨 أهم سطر في النظام كله
+      if (
+        typeof finalScore !== "number" ||
+        !recommendation
+      ) {
+        throw new Error("AI response missing required fields");
+      }
 
       await supabase
         .from("candidates")
