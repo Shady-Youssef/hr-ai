@@ -1,6 +1,6 @@
 export const runtime = "nodejs";
 
-import { processNextJob } from "@/lib/aiProcessor";
+import { processNextJob } from "../lib/aiProcessor";
 
 export async function POST() {
   try {
