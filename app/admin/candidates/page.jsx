@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../../lib/supabase";
 import Link from "next/link";
 import { Container } from "../../components/ContainerComponent";
@@ -13,13 +13,22 @@ export default function CandidatesDashboard() {
   const [minScore, setMinScore] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [recommendationFilter, setRecommendationFilter] = useState("All");
-
-  // ✅ No default UI sorting
   const [sortField, setSortField] = useState(null);
   const [sortDirection, setSortDirection] = useState("desc");
 
   const itemsPerPage = 10;
 
+  // ✅ Wrapped in useCallback عشان متتعملش recreate كل render
+  const fetchCandidates = useCallback(async () => {
+    const { data } = await supabase
+      .from("candidates")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    setCandidates(data || []);
+  }, []);
+
+  // ✅ Initial fetch + Realtime subscription
   useEffect(() => {
     fetchCandidates();
 
@@ -41,17 +50,16 @@ export default function CandidatesDashboard() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchCandidates]);
 
-  const fetchCandidates = async () => {
-    // ✅ Default order by newest first (created_at desc)
-    const { data } = await supabase
-      .from("candidates")
-      .select("*")
-      .order("created_at", { ascending: false });
+  // ✅ Polling fallback every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchCandidates();
+    }, 5000);
 
-    setCandidates(data || []);
-  };
+    return () => clearInterval(interval);
+  }, [fetchCandidates]);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -96,6 +104,10 @@ export default function CandidatesDashboard() {
         return `${base} bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300`;
       case "Shortlisted":
         return `${base} bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300`;
+      case "Reviewed":
+        return `${base} bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300`;
+      case "Processing":
+        return `${base} bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300`;
       default:
         return `${base} bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300`;
     }
@@ -120,7 +132,7 @@ export default function CandidatesDashboard() {
       statusFilter === "All" || c.status === statusFilter;
 
     const matchesScore =
-  minScore === "" || Number(c.final_score) >= Number(minScore);
+      minScore === "" || Number(c.final_score) >= Number(minScore);
 
     const matchesSearch =
       c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -211,7 +223,8 @@ export default function CandidatesDashboard() {
             className="p-2 border rounded dark:bg-gray-800 dark:border-gray-600"
           >
             <option value="All">All Status</option>
-            <option value="Pending">Pending</option>
+            <option value="Processing">Processing</option>
+            <option value="Reviewed">Reviewed</option>
             <option value="Shortlisted">Shortlisted</option>
             <option value="Hired">Hired</option>
             <option value="Rejected">Rejected</option>
@@ -244,7 +257,7 @@ export default function CandidatesDashboard() {
           />
         </div>
 
-        <div className="overflow-x-auto rounded-xl shadow border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+                <div className="overflow-x-auto rounded-xl shadow border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
 
           <table className="min-w-[900px] w-full text-left">
 
