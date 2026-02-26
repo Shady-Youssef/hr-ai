@@ -2,7 +2,6 @@ export const runtime = "nodejs";
 
 import pdf from "pdf-parse-fixed";
 import { createClient } from "@supabase/supabase-js";
-import { processNextJob } from "../../lib/aiProcessor";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -54,8 +53,10 @@ export async function POST(req) {
       },
     ]);
 
-    // 3️⃣ 🔥 Process immediately (NO fetch / NO cron)
-    await processNextJob();
+    // 3️⃣ 🔥 Trigger worker WITHOUT await (background)
+    fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/ai-worker`, {
+      method: "POST",
+    }).catch(() => {});
 
     return Response.json({
       message:
