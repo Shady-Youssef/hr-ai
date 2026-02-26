@@ -185,34 +185,60 @@ export default function AnalyticsClient({
       </Section>
 
       {/* ================= FUNNEL ================= */}
-      <Section title="Conversion Funnel">
-        <p className="text-sm text-gray-400 mb-4">
-          Visualizes candidate progression from total applications to final hires.
-          Helps identify drop-offs and bottlenecks in the hiring pipeline.
-        </p>
-        <ResponsiveContainer width="100%" height={300}>
-          <FunnelChart>
-            <Tooltip />
-            <Funnel
-              dataKey="value"
-              data={initialData.funnelData || []}
-              isAnimationActive
-            >
-              <LabelList position="right" dataKey="name" />
-            </Funnel>
-          </FunnelChart>
-        </ResponsiveContainer>
+<Section title="Conversion Funnel">
+  <p className="text-sm text-gray-400 mb-6">
+    Visualizes candidate progression and stage drop-offs in the hiring pipeline.
+  </p>
 
-        <div className="mt-4 text-sm text-gray-400">
-          Conversion Rate:{" "}
-          <span className="text-green-400 font-semibold">
-            {initialData.conversionRate}%
-          </span>
-          <span className="ml-2 text-gray-500">
-            — Percentage of applicants successfully hired.
-          </span>
+  <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-6 space-y-6">
+    {(initialData.funnelData || []).map((stage: any, index: number, arr: any[]) => {
+      const nextStage = arr[index + 1];
+      const dropPercentage =
+        nextStage && stage.value
+          ? (((stage.value - nextStage.value) / stage.value) * 100).toFixed(1)
+          : null;
+
+      return (
+        <div key={stage.name}>
+          {/* Stage Card */}
+          <div className="flex justify-between items-center bg-gradient-to-r from-gray-800 to-gray-700 p-4 rounded-lg">
+            <div>
+              <p className="text-sm text-gray-400">{stage.name}</p>
+              <p className="text-2xl font-bold">{stage.value}</p>
+            </div>
+
+            <div className="text-right">
+              {index === 0 && (
+                <span className="text-xs text-gray-500">
+                  Total Applicants
+                </span>
+              )}
+              {index === arr.length - 1 && (
+                <span className="text-xs text-green-400 font-semibold">
+                  Final Hires
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Drop indicator */}
+          {dropPercentage && (
+            <div className="flex justify-center items-center text-xs text-red-400 mt-2">
+              ↓ {dropPercentage}% drop
+            </div>
+          )}
         </div>
-      </Section>
+      );
+    })}
+  </div>
+
+  <div className="mt-6 text-sm">
+    <span className="text-gray-400">Overall Conversion Rate:</span>{" "}
+    <span className="text-green-400 font-bold text-lg">
+      {initialData.conversionRate}%
+    </span>
+  </div>
+</Section>
 
       {/* ================= TOP 5 ================= */}
       <Section title="Top 5 Candidates">
