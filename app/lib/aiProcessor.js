@@ -46,8 +46,6 @@ export async function processNextJob() {
       const prompt = `
 You are a senior technical hiring evaluator.
 
-Evaluate the candidate professionally and critically.
-
 Return ONLY valid JSON in this exact format:
 
 {
@@ -61,27 +59,7 @@ Return ONLY valid JSON in this exact format:
   "summary": string
 }
 
-SCORING RULES:
-
-- skillsScore (0-100): Evaluate technical depth, clarity, and correctness in core technologies.
-- experienceScore (0-100): Evaluate quality of projects, relevance, complexity, and ownership.
-- assessmentScore (0-100): Evaluate depth, completeness, and correctness of answers.
-  - Short shallow answers must score LOW even if technically correct.
-  - Example: Saying "React is a frontend framework" is shallow and should score low.
-  - The candidate must explain concepts, architecture, use cases, and demonstrate understanding.
-
-FINAL SCORE CALCULATION:
-- finalScore should be a weighted average:
-  40% skillsScore
-  30% experienceScore
-  30% assessmentScore
-
-CRITICAL:
-- Be strict.
-- Do not be generous.
-- Penalize shallow answers heavily.
-- Penalize incorrect terminology.
-- Reward clarity and depth.
+Be strict. Penalize shallow answers.
 
 CV:
 ${safeCvText}
@@ -130,26 +108,22 @@ ${candidate.answers}
 
       try {
         parsed = JSON.parse(cleaned);
-      } catch {
+      } catch (err) {
+        console.error("JSON PARSE ERROR:", cleaned);
         throw new Error("Invalid JSON from AI");
       }
 
-      const finalScoreRaw =
-        parsed?.finalScore ?? parsed?.final_score;
-
-      const finalScore = Number(finalScoreRaw);
-
+      const finalScore = Number(parsed?.finalScore);
       const skillsScore = Number(parsed?.skillsScore ?? 0);
       const experienceScore = Number(parsed?.experienceScore ?? 0);
       const assessmentScore = Number(parsed?.assessmentScore ?? 0);
-
-      const recommendation =
-        parsed?.recommendation;
+      const recommendation = parsed?.recommendation;
 
       if (
         isNaN(finalScore) ||
         !recommendation
       ) {
+        console.error("BAD AI RESPONSE:", parsed);
         throw new Error("AI response missing required fields");
       }
 
@@ -158,9 +132,9 @@ ${candidate.answers}
         .update({
           ai_result: parsed,
           final_score: finalScore,
-          skills_score: skillsScore,
-          experience_score: experienceScore,
-          assessment_score: assessmentScore,
+          skills_score: isNaN(skillsScore) ? 0 : skillsScore,
+          experience_score: isNaN(experienceScore) ? 0 : experienceScore,
+          assessment_score: isNaN(assessmentScore) ? 0 : assessmentScore,
           status:
             recommendation === "Reject"
               ? "Rejected"
