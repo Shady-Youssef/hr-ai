@@ -1,7 +1,7 @@
 import { getAnalyticsData } from "@/app/lib/serverAnalytics";
 import AnalyticsClient from "./AnalyticsClient";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function AnalyticsPage({
   searchParams,

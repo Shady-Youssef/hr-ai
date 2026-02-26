@@ -44,7 +44,20 @@ const safeCvText =
     : candidate.cv_text;
 
 const prompt = `
-You are an AI HR evaluation engine.
+You are a senior HR technical evaluator.
+
+Evaluate the candidate strictly and professionally.
+
+Scoring Rules:
+
+- Technical Accuracy (0-40)
+- Depth of Explanation (0-25)
+- Practical Understanding (0-20)
+- Communication Clarity (0-15)
+
+Total must equal 100.
+
+If the candidate gives shallow answers (e.g., defining React only as "a frontend framework" without explaining library vs framework, Virtual DOM, hooks, or architecture), deduct points for lack of depth.
 
 Return ONLY valid JSON in this format:
 
@@ -107,8 +120,10 @@ ${candidate.answers}
         throw new Error("Invalid JSON from AI");
       }
 
-      const finalScore =
-        parsed?.finalScore ?? parsed?.final_score;
+      const finalScoreRaw =
+  parsed?.finalScore ?? parsed?.final_score;
+
+const finalScore = Number(finalScoreRaw);
 
       const recommendation =
         parsed?.recommendation;
