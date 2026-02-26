@@ -36,7 +36,14 @@ export async function processNextJob() {
         .eq("id", job.candidate_id)
         .single();
 
-      const prompt = `
+      const MAX_CV_LENGTH = 15000;
+
+const safeCvText =
+  candidate.cv_text?.length > MAX_CV_LENGTH
+    ? candidate.cv_text.slice(0, MAX_CV_LENGTH)
+    : candidate.cv_text;
+
+const prompt = `
 You are an AI HR evaluation engine.
 
 Return ONLY valid JSON in this format:
@@ -50,7 +57,7 @@ Return ONLY valid JSON in this format:
 }
 
 CV:
-${candidate.cv_text}
+${safeCvText}
 
 Assessment:
 ${candidate.answers}
