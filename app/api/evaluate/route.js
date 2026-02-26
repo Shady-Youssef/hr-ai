@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import pdf from "pdf-parse-fixed";
 import { createClient } from "@supabase/supabase-js";
+import { processNextJob } from "@/lib/aiProcessor";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -35,7 +36,7 @@ export async function POST(req) {
             email,
             cv_text: cvText,
             answers: assessment,
-            status: "Processing"
+            status: "Processing",
           },
         ])
         .select()
@@ -49,19 +50,16 @@ export async function POST(req) {
     await supabase.from("ai_jobs").insert([
       {
         candidate_id: candidate.id,
+        status: "pending",
       },
     ]);
 
-    // 3️⃣ 🔥 Call worker immediately (NO CRON)
-    fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/ai-worker`, {
-      method: "POST",
-      headers: {
-        "x-internal-call": "true"
-      }
-    }).catch(() => {});
+    // 3️⃣ 🔥 Process immediately (NO fetch / NO cron)
+    await processNextJob();
 
     return Response.json({
-      message: "Application submitted successfully. AI evaluation started.",
+      message:
+        "Application submitted successfully. AI evaluation started.",
     });
 
   } catch (error) {
