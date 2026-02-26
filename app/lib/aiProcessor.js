@@ -38,41 +38,55 @@ export async function processNextJob() {
 
       const MAX_CV_LENGTH = 15000;
 
-const safeCvText =
-  candidate.cv_text?.length > MAX_CV_LENGTH
-    ? candidate.cv_text.slice(0, MAX_CV_LENGTH)
-    : candidate.cv_text;
+      const safeCvText =
+        candidate.cv_text?.length > MAX_CV_LENGTH
+          ? candidate.cv_text.slice(0, MAX_CV_LENGTH)
+          : candidate.cv_text;
 
-const prompt = `
-You are a senior HR technical evaluator.
+      const prompt = `
+You are a senior technical hiring evaluator.
 
-Evaluate the candidate strictly and professionally.
+Evaluate the candidate professionally and critically.
 
-Scoring Rules:
-
-- Technical Accuracy (0-40)
-- Depth of Explanation (0-25)
-- Practical Understanding (0-20)
-- Communication Clarity (0-15)
-
-Total must equal 100.
-
-If the candidate gives shallow answers (e.g., defining React only as "a frontend framework" without explaining library vs framework, Virtual DOM, hooks, or architecture), deduct points for lack of depth.
-
-Return ONLY valid JSON in this format:
+Return ONLY valid JSON in this exact format:
 
 {
   "finalScore": number,
+  "skillsScore": number,
+  "experienceScore": number,
+  "assessmentScore": number,
   "recommendation": "Strong Hire" | "Hire" | "Consider" | "Reject",
-  "strengths": [],
-  "weaknesses": [],
-  "summary": ""
+  "strengths": string[],
+  "weaknesses": string[],
+  "summary": string
 }
+
+SCORING RULES:
+
+- skillsScore (0-100): Evaluate technical depth, clarity, and correctness in core technologies.
+- experienceScore (0-100): Evaluate quality of projects, relevance, complexity, and ownership.
+- assessmentScore (0-100): Evaluate depth, completeness, and correctness of answers.
+  - Short shallow answers must score LOW even if technically correct.
+  - Example: Saying "React is a frontend framework" is shallow and should score low.
+  - The candidate must explain concepts, architecture, use cases, and demonstrate understanding.
+
+FINAL SCORE CALCULATION:
+- finalScore should be a weighted average:
+  40% skillsScore
+  30% experienceScore
+  30% assessmentScore
+
+CRITICAL:
+- Be strict.
+- Do not be generous.
+- Penalize shallow answers heavily.
+- Penalize incorrect terminology.
+- Reward clarity and depth.
 
 CV:
 ${safeCvText}
 
-Assessment:
+Assessment Answers:
 ${candidate.answers}
 `;
 
@@ -121,15 +135,19 @@ ${candidate.answers}
       }
 
       const finalScoreRaw =
-  parsed?.finalScore ?? parsed?.final_score;
+        parsed?.finalScore ?? parsed?.final_score;
 
-const finalScore = Number(finalScoreRaw);
+      const finalScore = Number(finalScoreRaw);
+
+      const skillsScore = Number(parsed?.skillsScore ?? 0);
+      const experienceScore = Number(parsed?.experienceScore ?? 0);
+      const assessmentScore = Number(parsed?.assessmentScore ?? 0);
 
       const recommendation =
         parsed?.recommendation;
 
       if (
-        typeof finalScore !== "number" ||
+        isNaN(finalScore) ||
         !recommendation
       ) {
         throw new Error("AI response missing required fields");
@@ -140,6 +158,9 @@ const finalScore = Number(finalScoreRaw);
         .update({
           ai_result: parsed,
           final_score: finalScore,
+          skills_score: skillsScore,
+          experience_score: experienceScore,
+          assessment_score: assessmentScore,
           status:
             recommendation === "Reject"
               ? "Rejected"
