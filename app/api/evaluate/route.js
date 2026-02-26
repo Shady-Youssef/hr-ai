@@ -25,7 +25,7 @@ export async function POST(req) {
     const data = await pdf(buffer);
     const cvText = data.text;
 
-    // 1️⃣ Insert candidate first
+    // 1️⃣ Insert candidate
     const { data: candidate, error: insertError } =
       await supabase
         .from("candidates")
@@ -46,20 +46,22 @@ export async function POST(req) {
     }
 
     // 2️⃣ Insert AI job
-    const { error: jobError } = await supabase
-      .from("ai_jobs")
-      .insert([
-        {
-          candidate_id: candidate.id,
-        },
-      ]);
+    await supabase.from("ai_jobs").insert([
+      {
+        candidate_id: candidate.id,
+      },
+    ]);
 
-    if (jobError) {
-      throw new Error(jobError.message);
-    }
+    // 3️⃣ 🔥 Call worker immediately (NO CRON)
+    fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/ai-worker`, {
+      method: "POST",
+      headers: {
+        "x-internal-call": "true"
+      }
+    }).catch(() => {});
 
     return Response.json({
-      message: "Application submitted successfully. AI evaluation in progress.",
+      message: "Application submitted successfully. AI evaluation started.",
     });
 
   } catch (error) {

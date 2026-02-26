@@ -7,14 +7,11 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const MAX_ATTEMPTS = 3;
-
 export async function POST(req) {
 
-  // ✅ Secure for Vercel Cron
-  const cronHeader = req.headers.get("x-vercel-cron");
+  const internalCall = req.headers.get("x-internal-call");
 
-  if (!cronHeader) {
+  if (!internalCall) {
     return new Response("Unauthorized", { status: 401 });
   }
 
