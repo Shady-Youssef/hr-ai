@@ -65,12 +65,12 @@ ${candidate.answers}
             "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
           },
           body: JSON.stringify({
-            model: "llama3-70b-8192",
+            model: "llama-3.3-70b-versatile",
             temperature: 0.2,
             messages: [
               {
                 role: "system",
-                content: "You are a strict JSON generator. Always return valid JSON only."
+                content: "Return ONLY valid JSON. No markdown."
               },
               {
                 role: "user",
@@ -137,29 +137,13 @@ ${candidate.answers}
 
       const attempts = (job.attempts || 0) + 1;
 
-      const rawErrorMessage = error?.message || "";
-
-      const finalErrorMessage =
-        rawErrorMessage.includes("429")
-          ? "Groq rate limit exceeded"
-          : rawErrorMessage;
-
       await supabase
         .from("ai_jobs")
         .update({
           status: attempts >= MAX_ATTEMPTS ? "failed" : "retry",
-          error: finalErrorMessage,
+          error: error.message,
         })
         .eq("id", job.id);
-
-      if (rawErrorMessage.includes("429")) {
-        await supabase
-          .from("candidates")
-          .update({
-            status: "Pending",
-          })
-          .eq("id", job.candidate_id);
-      }
 
       console.error("PROCESSOR ERROR:", error);
     }
