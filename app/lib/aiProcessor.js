@@ -39,7 +39,15 @@ export async function processNextJob() {
       const prompt = `
 You are an AI HR evaluation engine.
 
-Return ONLY valid JSON.
+Return ONLY valid JSON in this format:
+
+{
+  "finalScore": number,
+  "recommendation": "Strong Hire" | "Hire" | "Consider" | "Reject",
+  "strengths": [],
+  "weaknesses": [],
+  "summary": ""
+}
 
 CV:
 ${candidate.cv_text}
@@ -69,15 +77,30 @@ ${candidate.answers}
         result.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
 
       const cleaned = rawText.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(cleaned);
+
+      let parsed;
+
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch {
+        throw new Error("Invalid JSON from AI");
+      }
+
+      const finalScore =
+        parsed.finalScore ??
+        parsed.final_score ??
+        0;
+
+      const recommendation =
+        parsed.recommendation ?? "Reject";
 
       await supabase
         .from("candidates")
         .update({
           ai_result: parsed,
-          final_score: parsed.finalScore,
+          final_score: finalScore,
           status:
-            parsed.recommendation === "Reject"
+            recommendation === "Reject"
               ? "Rejected"
               : "Reviewed",
         })
