@@ -6,19 +6,21 @@ export async function processNextJob() {
     process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
-  try {
+  const MAX_ATTEMPTS = 3;
 
-    while (true) {
+  while (true) {
 
-      const { data: job } = await supabase
-        .from("ai_jobs")
-        .select("*")
-        .in("status", ["pending", "retry"])
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
+    const { data: job } = await supabase
+      .from("ai_jobs")
+      .select("*")
+      .in("status", ["pending", "retry"])
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
-      if (!job) break; // مفيش jobs تاني
+    if (!job) break;
+
+    try {
 
       await supabase
         .from("ai_jobs")
@@ -88,9 +90,20 @@ ${candidate.answers}
           error: null,
         })
         .eq("id", job.id);
-    }
 
-  } catch (error) {
-    console.error("PROCESSOR ERROR:", error);
+    } catch (error) {
+
+      const attempts = (job.attempts || 0) + 1;
+
+      await supabase
+        .from("ai_jobs")
+        .update({
+          status: attempts >= MAX_ATTEMPTS ? "failed" : "retry",
+          error: error.message,
+        })
+        .eq("id", job.id);
+
+      console.error("PROCESSOR ERROR:", error);
+    }
   }
 }
