@@ -2,6 +2,17 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(req) {
+  const { pathname } = req.nextUrl;
+
+  // 🔥 مهم جدًا: تجاهل ملفات Next الداخلية
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/favicon.ico") ||
+    pathname.startsWith("/api")
+  ) {
+    return NextResponse.next();
+  }
+
   const res = NextResponse.next();
   const url = req.nextUrl.clone();
 
@@ -19,18 +30,17 @@ export async function middleware(req) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // 🔥 PUBLIC ROUTES (مهمة جدًا لمنع redirect loop)
+  // ✅ Public routes
   const publicRoutes = ["/", "/login"];
+  const isPublic =
+    publicRoutes.includes(pathname) ||
+    pathname.startsWith("/apply");
 
-  const isPublicRoute =
-    publicRoutes.includes(url.pathname) ||
-    url.pathname.startsWith("/apply");
-
-  if (isPublicRoute) {
+  if (isPublic) {
     return res;
   }
 
-  // 🔒 أي صفحة تانية محتاجة login
+  // 🔒 Require login
   if (!user) {
     url.pathname = "/login";
     return NextResponse.redirect(url);
@@ -45,7 +55,10 @@ export async function middleware(req) {
   const role = roleData?.role;
 
   // 🔴 Admin only
-  if (url.pathname.startsWith("/admin") && !url.pathname.startsWith("/admin/candidates") && !url.pathname.startsWith("/admin/analytics")) {
+  if (pathname.startsWith("/admin") &&
+      !pathname.startsWith("/admin/candidates") &&
+      !pathname.startsWith("/admin/analytics")) {
+
     if (role !== "admin") {
       url.pathname = "/";
       return NextResponse.redirect(url);
@@ -54,8 +67,8 @@ export async function middleware(req) {
 
   // 🔵 HR + Admin
   if (
-    url.pathname.startsWith("/admin/candidates") ||
-    url.pathname.startsWith("/admin/analytics")
+    pathname.startsWith("/admin/candidates") ||
+    pathname.startsWith("/admin/analytics")
   ) {
     if (!["admin", "hr"].includes(role)) {
       url.pathname = "/";
