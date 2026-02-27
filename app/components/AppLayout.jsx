@@ -15,60 +15,66 @@ export default function AppLayout({ children }) {
   const pathname = usePathname();
 
   useEffect(() => {
-  let isMounted = true;
+    let isMounted = true;
 
-  const loadUserData = async (session) => {
-    if (!session?.user) {
-      if (isMounted) {
-        setRole(null);
-        setProfile(null);
-        setLoading(false);
-      }
-      return;
-    }
-
-    try {
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("id", session.user.id)
-        .single();
-
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("first_name, avatar_url")
-        .eq("id", session.user.id)
-        .single();
-
-      if (isMounted) {
-        if (roleData?.role) setRole(roleData.role);
-        if (profileData) setProfile(profileData);
-        setLoading(false);
+    const loadUserData = async (session) => {
+      if (!session?.user) {
+        if (isMounted) {
+          setRole(null);
+          setProfile(null);
+          setLoading(false);
+        }
+        return;
       }
 
-    } catch (err) {
-      console.error(err);
+      try {
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("id", session.user.id)
+          .single();
+
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("first_name, avatar_url")
+          .eq("id", session.user.id)
+          .single();
+
+        if (isMounted) {
+          if (roleData?.role) setRole(roleData.role);
+          if (profileData) setProfile(profileData);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error(err);
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    const init = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      loadUserData(session);
+    };
+
+    init();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      loadUserData(session);
+    });
+
+    setTimeout(() => {
       if (isMounted) setLoading(false);
-    }
-  };
+    }, 3000);
 
-  // Listen for auth changes
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, session) => {
-    loadUserData(session);
-  });
-
-  // Fallback: ensure loading never hangs
-  setTimeout(() => {
-    if (isMounted) setLoading(false);
-  }, 3000);
-
-  return () => {
-    isMounted = false;
-    subscription.unsubscribe();
-  };
-}, []);
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -80,8 +86,8 @@ export default function AppLayout({ children }) {
     window.location.href = "/login";
   };
 
-  const showNav =
-    role === "admin" || pathname.startsWith("/admin") || !!role;
+  // 🔥 Navbar يظهر فقط لـ admin و hr
+  const showNav = role === "admin" || role === "hr";
 
   const navItem = (path, label) => (
     <Link
@@ -121,10 +127,19 @@ export default function AppLayout({ children }) {
               </span>
 
               <nav className="hidden md:flex items-center gap-6">
+
                 {navItem("/", "Home")}
-                {navItem("/admin", "Admin")}
-                {navItem("/admin/candidates", "Candidates")}
-                {navItem("/admin/analytics", "Analytics")}
+
+                {/* 🔴 Admin only */}
+                {role === "admin" && navItem("/admin", "Admin")}
+
+                {/* 🔵 HR + Admin */}
+                {(role === "admin" || role === "hr") &&
+                  navItem("/admin/candidates", "Candidates")}
+
+                {(role === "admin" || role === "hr") &&
+                  navItem("/admin/analytics", "Analytics")}
+
               </nav>
             </div>
 
@@ -136,7 +151,6 @@ export default function AppLayout({ children }) {
                 </span>
               )}
 
-              {/* First Name Display */}
               {profile?.first_name && (
                 <span className="hidden md:block text-sm font-medium text-gray-300">
                   {profile.first_name}
@@ -196,10 +210,16 @@ export default function AppLayout({ children }) {
             }`}
           >
             <div className="px-6 pb-4 flex flex-col gap-3 bg-black/80 backdrop-blur-md">
+
               {navItem("/", "Home")}
-              {navItem("/admin", "Admin")}
-              {navItem("/admin/candidates", "Candidates")}
-              {navItem("/admin/analytics", "Analytics")}
+
+              {role === "admin" && navItem("/admin", "Admin")}
+
+              {(role === "admin" || role === "hr") &&
+                navItem("/admin/candidates", "Candidates")}
+
+              {(role === "admin" || role === "hr") &&
+                navItem("/admin/analytics", "Analytics")}
 
               <Link
                 href="/profile"
@@ -214,6 +234,7 @@ export default function AppLayout({ children }) {
               >
                 Logout
               </button>
+
             </div>
           </div>
 
