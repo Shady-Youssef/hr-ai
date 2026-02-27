@@ -32,13 +32,11 @@ export default function ProfilePage() {
 
   const previewRef = useRef(null);
 
-  // ---------- Toast ----------
   const showToast = (type, message) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 3000);
   };
 
-  // ---------- Password Strength ----------
   const getPasswordStrength = (password) => {
     if (!password) return { label: "", color: "" };
     if (password.length < 6) return { label: "Weak", color: "bg-red-500" };
@@ -58,26 +56,26 @@ export default function ProfilePage() {
   useEffect(() => {
     const loadProfile = async () => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
+        const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           setLoading(false);
           return;
         }
 
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", user.id)
           .maybeSingle();
 
+        if (error) {
+          console.error("LOAD PROFILE ERROR:", error);
+        }
+
         if (data) {
           setProfile(data);
           setOriginalProfile(data);
         } else {
-          // 🔥 Auto-create empty profile row if not exists
           const emptyProfile = {
             id: user.id,
             first_name: "",
@@ -86,7 +84,13 @@ export default function ProfilePage() {
             avatar_url: "",
           };
 
-          await supabase.from("profiles").insert(emptyProfile);
+          const { error: insertError } = await supabase
+            .from("profiles")
+            .insert(emptyProfile);
+
+          if (insertError) {
+            console.error("INSERT PROFILE ERROR:", insertError);
+          }
 
           setProfile(emptyProfile);
           setOriginalProfile(emptyProfile);
@@ -111,28 +115,32 @@ export default function ProfilePage() {
     try {
       setSaving(true);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         showToast("error", "User not authenticated.");
         return;
       }
 
-      const { error } = await supabase.from("profiles").upsert({
-        id: user.id,
-        ...profile,
-        updated_at: new Date(),
-      });
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          first_name: profile.first_name,
+          last_name: profile.last_name,
+          phone: profile.phone,
+          avatar_url: profile.avatar_url,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", user.id);
 
       if (error) {
+        console.error("UPDATE ERROR:", error);
         showToast("error", "Failed to update profile.");
       } else {
         setOriginalProfile(profile);
         window.dispatchEvent(new Event("profileUpdated"));
         showToast("success", "Profile updated successfully.");
       }
+
     } catch (err) {
       console.error(err);
       showToast("error", "Unexpected error occurred.");
@@ -163,6 +171,7 @@ export default function ProfilePage() {
     });
 
     if (error) {
+      console.error("PASSWORD ERROR:", error);
       showToast("error", "Failed to update password.");
     } else {
       showToast("success", "Password updated successfully.");
@@ -185,9 +194,7 @@ export default function ProfilePage() {
       previewRef.current = objectUrl;
       setPreview(objectUrl);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const filePath = `${user.id}/avatar.png`;
@@ -223,25 +230,19 @@ export default function ProfilePage() {
       <h1 className="text-3xl font-bold">Profile Settings</h1>
 
       {toast && (
-        <div
-          className={`fixed top-6 right-6 z-50 px-6 py-4 rounded-xl shadow-lg text-white ${
-            toast.type === "success"
-              ? "bg-green-600"
-              : "bg-red-600"
-          }`}
-        >
+        <div className={`fixed top-6 right-6 z-50 px-6 py-4 rounded-xl shadow-lg text-white ${
+          toast.type === "success" ? "bg-green-600" : "bg-red-600"
+        }`}>
           {toast.message}
         </div>
       )}
 
+      {/* Profile Card */}
       <div className="bg-[#1f2937] p-6 rounded-2xl shadow-lg space-y-6">
+
         <div className="flex items-center gap-6 flex-wrap">
           <img
-            src={
-              preview ||
-              profile.avatar_url ||
-              "/default-avatar.png"
-            }
+            src={preview || profile.avatar_url || "/default-avatar.png"}
             className="w-24 h-24 rounded-full object-cover border"
           />
 
@@ -255,10 +256,7 @@ export default function ProfilePage() {
           <input
             value={profile.first_name}
             onChange={(e) =>
-              setProfile({
-                ...profile,
-                first_name: e.target.value,
-              })
+              setProfile({ ...profile, first_name: e.target.value })
             }
             placeholder="First Name"
             className="p-3 rounded-lg bg-gray-800 border border-gray-700"
@@ -267,10 +265,7 @@ export default function ProfilePage() {
           <input
             value={profile.last_name}
             onChange={(e) =>
-              setProfile({
-                ...profile,
-                last_name: e.target.value,
-              })
+              setProfile({ ...profile, last_name: e.target.value })
             }
             placeholder="Last Name"
             className="p-3 rounded-lg bg-gray-800 border border-gray-700"
@@ -279,10 +274,7 @@ export default function ProfilePage() {
           <input
             value={profile.phone}
             onChange={(e) =>
-              setProfile({
-                ...profile,
-                phone: e.target.value,
-              })
+              setProfile({ ...profile, phone: e.target.value })
             }
             placeholder="Phone Number"
             className="p-3 rounded-lg bg-gray-800 border border-gray-700 md:col-span-2"
@@ -301,6 +293,63 @@ export default function ProfilePage() {
           {saving ? "Saving..." : "Save Changes"}
         </button>
       </div>
+
+      {/* Change Password Section */}
+      <div className="bg-[#1f2937] p-6 rounded-2xl shadow-lg space-y-6">
+        <h2 className="text-xl font-semibold">Change Password</h2>
+
+        <div className="grid gap-4">
+          <input
+            type="password"
+            value={passwordData.newPassword}
+            onChange={(e) =>
+              setPasswordData({
+                ...passwordData,
+                newPassword: e.target.value,
+              })
+            }
+            placeholder="New Password"
+            className="p-3 rounded-lg bg-gray-800 border border-gray-700"
+          />
+
+          {passwordData.newPassword && (
+            <div className="w-full h-2 rounded bg-gray-700 overflow-hidden">
+              <div
+                className={`h-full ${strength.color}`}
+                style={{
+                  width:
+                    strength.label === "Weak"
+                      ? "33%"
+                      : strength.label === "Medium"
+                      ? "66%"
+                      : "100%",
+                }}
+              />
+            </div>
+          )}
+
+          <input
+            type="password"
+            value={passwordData.confirmPassword}
+            onChange={(e) =>
+              setPasswordData({
+                ...passwordData,
+                confirmPassword: e.target.value,
+              })
+            }
+            placeholder="Confirm New Password"
+            className="p-3 rounded-lg bg-gray-800 border border-gray-700"
+          />
+        </div>
+
+        <button
+          onClick={handleChangePassword}
+          className="bg-blue-600 px-6 py-3 rounded-lg text-white hover:bg-blue-500"
+        >
+          Update Password
+        </button>
+      </div>
+
     </div>
   );
 }
