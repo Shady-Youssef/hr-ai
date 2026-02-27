@@ -46,7 +46,13 @@ export async function middleware(req) {
     return NextResponse.redirect(url);
   }
 
-  const role = user.user_metadata?.role;
+  const { data: roleData } = await supabase
+  .from("user_roles")
+  .select("role")
+  .eq("id", user.id)
+  .maybeSingle();
+
+const role = roleData?.role;
 
   // 🔴 Admin only
   if (pathname.startsWith("/admin") &&
