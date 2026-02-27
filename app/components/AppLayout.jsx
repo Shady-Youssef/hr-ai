@@ -32,13 +32,13 @@ export default function AppLayout({ children }) {
           .from("user_roles")
           .select("role")
           .eq("id", session.user.id)
-          .single();
+          .maybeSingle();
 
         const { data: profileData } = await supabase
           .from("profiles")
           .select("first_name, avatar_url")
           .eq("id", session.user.id)
-          .single();
+          .maybeSingle();
 
         if (isMounted) {
           if (roleData?.role) setRole(roleData.role);
