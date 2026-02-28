@@ -8,7 +8,7 @@ export async function middleware(req) {
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon.ico") ||
-    pathname.startsWith("/api")
+    (pathname.startsWith("/api") && !pathname.startsWith("/api/admin"))
   ) {
     return NextResponse.next();
   }
@@ -42,6 +42,9 @@ export async function middleware(req) {
 
   // 🔒 Require login
   if (!user) {
+    if (pathname.startsWith("/api/admin")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
@@ -53,6 +56,13 @@ export async function middleware(req) {
   .maybeSingle();
 
 const role = roleData?.role;
+
+  // 🔴 Admin only
+  if (pathname.startsWith("/api/admin")) {
+    if (role !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
 
   // 🔴 Admin only
   if (pathname.startsWith("/admin") &&
@@ -67,6 +77,7 @@ const role = roleData?.role;
 
   // 🔵 HR + Admin
   if (
+    pathname.startsWith("/hr") ||
     pathname.startsWith("/admin/candidates") ||
     pathname.startsWith("/admin/analytics")
   ) {

@@ -136,6 +136,9 @@ export default function AppLayout({ children }) {
 
                 {/* 🔵 HR + Admin */}
                 {(role === "admin" || role === "hr") &&
+                  navItem("/hr", "HR")}
+
+                {(role === "admin" || role === "hr") &&
                   navItem("/admin/candidates", "Candidates")}
 
                 {(role === "admin" || role === "hr") &&
@@ -215,6 +218,9 @@ export default function AppLayout({ children }) {
               {navItem("/", "Home")}
 
               {role === "admin" && navItem("/admin", "Admin")}
+
+              {(role === "admin" || role === "hr") &&
+                navItem("/hr", "HR")}
 
               {(role === "admin" || role === "hr") &&
                 navItem("/admin/candidates", "Candidates")}
