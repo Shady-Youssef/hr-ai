@@ -300,7 +300,7 @@ ${JSON.stringify(assessmentAnswers, null, 2)}
           skills_score: skillsScore,
           experience_score: experienceScore,
           assessment_score: blendedAssessmentScore,
-          status: recommendation === "Reject" ? "Rejected" : "Reviewed",
+          status: "Reviewed",
         })
         .eq("id", candidate.id);
 

@@ -212,8 +212,13 @@ export default function CandidatesDashboard() {
           </button>
         </a>
 
-        <h1 className="text-2xl font-bold mb-6">
+        <h1 className="text-2xl font-bold mb-6 flex items-center gap-3">
           Candidates
+          {candidates && (
+            <span className="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full dark:bg-blue-900 dark:text-blue-300">
+              {candidates.length}
+            </span>
+          )}
         </h1>
 
         {sortField && (
