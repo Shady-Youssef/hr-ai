@@ -8,44 +8,85 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+function parseJsonObject(input) {
+  if (!input) return {};
+  if (typeof input === "object") return input;
+
+  try {
+    const parsed = JSON.parse(String(input));
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function extractCvText(file) {
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+  const fileName = (file.name || "").toLowerCase();
+  const fileType = (file.type || "").toLowerCase();
+  const looksLikeCsv =
+    fileName.endsWith(".csv") ||
+    fileType.includes("text/csv") ||
+    fileType.includes("application/vnd.ms-excel");
+
+  if (looksLikeCsv) {
+    return buffer.toString("utf8");
+  }
+
+  const parsedPdf = await pdf(buffer);
+  return parsedPdf?.text || "";
+}
+
 export async function POST(req) {
   try {
     const formData = await req.formData();
     const file = formData.get("cv");
-    const assessment = formData.get("assessment");
-    const email = formData.get("email");
-    const name = formData.get("name");
+    const email = String(formData.get("email") || "")
+      .trim()
+      .toLowerCase();
+    const name = String(formData.get("name") || "").trim();
+
+    const assessment = parseJsonObject(formData.get("assessment"));
+    const extraFields = parseJsonObject(formData.get("extra_fields"));
+    const formSlug = String(formData.get("form_slug") || "").trim();
+    const formTitle = String(formData.get("form_title") || "").trim();
+    const formSubject = String(formData.get("form_subject") || "").trim();
 
     if (!file) {
-      return Response.json({ result: "No file uploaded" });
+      return Response.json({ result: "No file uploaded" }, { status: 400 });
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const data = await pdf(buffer);
-    const cvText = data.text;
+    const cvText = await extractCvText(file);
 
-    // 1️⃣ Insert candidate
-    const { data: candidate, error: insertError } =
-      await supabase
-        .from("candidates")
-        .insert([
-          {
-            name,
-            email,
-            cv_text: cvText,
-            answers: assessment,
-            status: "Processing",
-          },
-        ])
-        .select()
-        .single();
+    const answersPayload = {
+      form: {
+        slug: formSlug || null,
+        title: formTitle || null,
+        subject: formSubject || null,
+      },
+      assessment,
+      extra_fields: extraFields,
+    };
+
+    const { data: candidate, error: insertError } = await supabase
+      .from("candidates")
+      .insert([
+        {
+          name,
+          email,
+          cv_text: cvText,
+          answers: JSON.stringify(answersPayload),
+          status: "Processing",
+        },
+      ])
+      .select()
+      .single();
 
     if (insertError) {
       throw new Error(insertError.message);
     }
 
-    // 2️⃣ Insert AI job
     await supabase.from("ai_jobs").insert([
       {
         candidate_id: candidate.id,
@@ -53,16 +94,14 @@ export async function POST(req) {
       },
     ]);
 
-    // 3️⃣ 🔥 Trigger worker WITHOUT await (background)
-    fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/ai-worker`, {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(req.url).origin;
+    fetch(`${siteUrl}/api/ai-worker`, {
       method: "POST",
     }).catch(() => {});
 
     return Response.json({
-      message:
-        "Application submitted successfully. AI evaluation started.",
+      message: "Application submitted successfully. AI evaluation started.",
     });
-
   } catch (error) {
     console.error("API ERROR:", error);
     return new Response(

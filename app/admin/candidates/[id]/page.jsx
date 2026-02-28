@@ -39,6 +39,7 @@ export default function CandidateDetails() {
       fetchCandidate();
       fetchQuestions();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const updateStatus = async (newStatus) => {
@@ -100,6 +101,18 @@ export default function CandidateDetails() {
     answersObject = {};
   }
 
+  const hasEnvelope =
+    answersObject &&
+    typeof answersObject === "object" &&
+    ("assessment" in answersObject ||
+      "extra_fields" in answersObject ||
+      "form" in answersObject);
+  const assessmentAnswers = hasEnvelope
+    ? answersObject.assessment || {}
+    : answersObject || {};
+  const extraFields = hasEnvelope ? answersObject.extra_fields || {} : {};
+  const formMeta = hasEnvelope ? answersObject.form || {} : {};
+
   const cardStyle =
     "bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-md border border-gray-100 dark:border-gray-800 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1";
 
@@ -136,6 +149,19 @@ export default function CandidateDetails() {
           </p>
         </div>
       </div>
+
+      {(formMeta?.title || formMeta?.slug || formMeta?.subject) && (
+        <div className={cardStyle}>
+          <h3 className="text-sm text-gray-500 mb-3">Application Form</h3>
+          <div className="space-y-1 text-sm">
+            {formMeta?.title && <p><strong>Title:</strong> {formMeta.title}</p>}
+            {formMeta?.slug && <p><strong>Slug:</strong> {formMeta.slug}</p>}
+            {formMeta?.subject && (
+              <p><strong>Subject:</strong> {formMeta.subject}</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Status */}
       <div className={`${cardStyle} flex flex-wrap items-center justify-between gap-4`}>
@@ -232,7 +258,7 @@ export default function CandidateDetails() {
         <h2 className="text-xl font-semibold">Answers</h2>
 
         {questions.map((q) => {
-          const answer = answersObject[q.id];
+          const answer = assessmentAnswers[q.id];
           if (!answer) return null;
 
           return (
@@ -243,6 +269,23 @@ export default function CandidateDetails() {
           );
         })}
       </div>
+
+      {Object.keys(extraFields || {}).length > 0 && (
+        <div className={`${cardStyle} space-y-4`}>
+          <h2 className="text-xl font-semibold">Additional Information</h2>
+          {Object.entries(extraFields).map(([key, value]) => (
+            <div
+              key={key}
+              className="border-b pb-3 last:border-none text-sm space-y-1"
+            >
+              <p className="font-semibold">{key}</p>
+              <p className="text-gray-700 dark:text-gray-300">
+                {String(value || "-")}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* CV */}
       <div className={cardStyle}>

@@ -5,13 +5,13 @@
 select table_name
 from information_schema.tables
 where table_schema = 'public'
-  and table_name in ('profiles', 'user_roles', 'questions', 'candidates', 'ai_jobs')
+  and table_name in ('profiles', 'user_roles', 'questions', 'candidates', 'ai_jobs', 'job_forms')
 order by table_name;
 
 select table_name, column_name, data_type
 from information_schema.columns
 where table_schema = 'public'
-  and table_name in ('profiles', 'user_roles', 'questions', 'candidates', 'ai_jobs')
+  and table_name in ('profiles', 'user_roles', 'questions', 'candidates', 'ai_jobs', 'job_forms')
 order by table_name, ordinal_position;
 
 -- 2) Ensure core tables exist
@@ -66,6 +66,18 @@ create table if not exists public.ai_jobs (
   updated_at timestamptz default now()
 );
 
+create table if not exists public.job_forms (
+  id uuid primary key default gen_random_uuid(),
+  slug text not null unique,
+  title text not null,
+  subject text,
+  description text,
+  fields jsonb not null default '[]'::jsonb,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- 3) Ensure columns expected by code exist (idempotent)
 alter table public.profiles add column if not exists first_name text;
 alter table public.profiles add column if not exists last_name text;
@@ -83,6 +95,8 @@ create index if not exists idx_user_roles_role on public.user_roles(role);
 create index if not exists idx_questions_is_active on public.questions(is_active);
 create index if not exists idx_candidates_created_at on public.candidates(created_at desc);
 create index if not exists idx_ai_jobs_status_created_at on public.ai_jobs(status, created_at);
+create index if not exists idx_job_forms_is_active on public.job_forms(is_active);
+create index if not exists idx_job_forms_updated_at on public.job_forms(updated_at desc);
 
 -- 5) Sync role source: middleware reads user_roles, invite route currently writes profiles.role
 -- Ensure auth.users creates baseline rows with candidate defaults
@@ -147,6 +161,7 @@ alter table public.user_roles enable row level security;
 alter table public.questions enable row level security;
 alter table public.candidates enable row level security;
 alter table public.ai_jobs enable row level security;
+alter table public.job_forms enable row level security;
 
 -- Remove old conflicting policies if present
 drop policy if exists "profiles_select_own" on public.profiles;
@@ -158,6 +173,8 @@ drop policy if exists "questions_manage_admin_hr" on public.questions;
 drop policy if exists "candidates_read_admin_hr" on public.candidates;
 drop policy if exists "candidates_update_admin_hr" on public.candidates;
 drop policy if exists "ai_jobs_read_admin_hr" on public.ai_jobs;
+drop policy if exists "job_forms_select_active_public" on public.job_forms;
+drop policy if exists "job_forms_manage_admin_hr" on public.job_forms;
 
 -- Profiles: user can read/insert/update own row
 create policy "profiles_select_own"
@@ -257,6 +274,36 @@ on public.ai_jobs
 for select
 to authenticated
 using (
+  exists (
+    select 1
+    from public.user_roles ur
+    where ur.id = auth.uid()
+      and ur.role in ('admin', 'hr')
+  )
+);
+
+-- Job forms:
+-- - Public can read active forms for the candidate application pages
+create policy "job_forms_select_active_public"
+on public.job_forms
+for select
+to anon, authenticated
+using (is_active = true);
+
+-- - Admin/HR can fully manage all forms
+create policy "job_forms_manage_admin_hr"
+on public.job_forms
+for all
+to authenticated
+using (
+  exists (
+    select 1
+    from public.user_roles ur
+    where ur.id = auth.uid()
+      and ur.role in ('admin', 'hr')
+  )
+)
+with check (
   exists (
     select 1
     from public.user_roles ur

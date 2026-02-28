@@ -30,6 +30,7 @@ export default function CandidatesDashboard() {
 
   // ✅ Initial fetch + Realtime subscription
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCandidates();
 
     const channel = supabase
@@ -72,19 +73,31 @@ export default function CandidatesDashboard() {
 
   const clearSorting = () => {
     setSortField(null);
+    setSortDirection("desc");
   };
 
   const renderSortIcon = (field) => {
     if (sortField !== field) {
-      return <span className="ml-2 text-gray-400 text-xs">⇅</span>;
+      return <span className="text-gray-400 text-xs">⇅</span>;
     }
 
     return sortDirection === "asc" ? (
-      <span className="ml-2 text-blue-500 text-xs">↑</span>
+      <span className="text-blue-500 text-xs">↑</span>
     ) : (
-      <span className="ml-2 text-blue-500 text-xs">↓</span>
+      <span className="text-blue-500 text-xs">↓</span>
     );
   };
+
+  const renderSortButton = (field, label) => (
+    <button
+      type="button"
+      onClick={() => handleSort(field)}
+      className="inline-flex items-center gap-2 whitespace-nowrap hover:text-blue-500 transition"
+    >
+      <span>{label}</span>
+      {renderSortIcon(field)}
+    </button>
+  );
 
   const getScoreColor = (score) => {
     if (score >= 85) return "text-green-600 dark:text-green-400";
@@ -162,6 +175,15 @@ export default function CandidatesDashboard() {
           valueA = a[sortField];
           valueB = b[sortField];
         }
+
+        if (valueA == null && valueB != null) {
+          return sortDirection === "asc" ? 1 : -1;
+        }
+        if (valueB == null && valueA != null) {
+          return sortDirection === "asc" ? -1 : 1;
+        }
+        if (typeof valueA === "string") valueA = valueA.toLowerCase();
+        if (typeof valueB === "string") valueB = valueB.toLowerCase();
 
         if (valueA < valueB) return sortDirection === "asc" ? -1 : 1;
         if (valueA > valueB) return sortDirection === "asc" ? 1 : -1;
@@ -265,17 +287,17 @@ export default function CandidatesDashboard() {
               <tr>
                 <th className="p-4">Name</th>
                 <th className="p-4">Email</th>
-                <th onClick={() => handleSort("final_score")} className="p-4 cursor-pointer select-none">
-                  Score {renderSortIcon("final_score")}
+                <th className="p-4 select-none">
+                  {renderSortButton("final_score", "Score")}
                 </th>
-                <th onClick={() => handleSort("recommendation")} className="p-4 cursor-pointer select-none">
-                  Recommendation {renderSortIcon("recommendation")}
+                <th className="p-4 select-none">
+                  {renderSortButton("recommendation", "Recommendation")}
                 </th>
-                <th onClick={() => handleSort("status")} className="p-4 cursor-pointer select-none">
-                  Status {renderSortIcon("status")}
+                <th className="p-4 select-none">
+                  {renderSortButton("status", "Status")}
                 </th>
-                <th onClick={() => handleSort("created_at")} className="p-4 cursor-pointer select-none">
-                  Date {renderSortIcon("created_at")}
+                <th className="p-4 select-none">
+                  {renderSortButton("created_at", "Date")}
                 </th>
                 <th className="p-4">Details</th>
               </tr>

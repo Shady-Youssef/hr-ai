@@ -12,6 +12,10 @@ function formatDate(value) {
   return date.toLocaleString();
 }
 
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((value || "").trim());
+}
+
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
@@ -23,11 +27,28 @@ export default function UsersPage() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
 
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("candidate");
-  const [inviting, setInviting] = useState(false);
-
   const [toast, setToast] = useState(null);
+  const [actionMenu, setActionMenu] = useState(null);
+
+  const [createForm, setCreateForm] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+    role: "candidate",
+    passwordMethod: "invite",
+    password: "",
+    confirmPassword: "",
+  });
+  const [creatingUser, setCreatingUser] = useState(false);
+
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    title: "",
+    message: "",
+    confirmLabel: "Confirm",
+    onConfirm: null,
+  });
 
   const [editOpen, setEditOpen] = useState(false);
   const [editingUserId, setEditingUserId] = useState(null);
@@ -42,7 +63,6 @@ export default function UsersPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
-  const [actionMenu, setActionMenu] = useState(null);
 
   const showToast = (type, message) => {
     setToast({ type, message });
@@ -52,7 +72,7 @@ export default function UsersPage() {
     if (!actionMenu) return {};
 
     const menuWidth = 220;
-    const menuHeight = 210;
+    const menuHeight = 230;
     const left = Math.max(
       8,
       Math.min(actionMenu.left, window.innerWidth - menuWidth - 8)
@@ -73,6 +93,39 @@ export default function UsersPage() {
 
   const setUserBusy = (userId, busy) => {
     setBusyByUser((prev) => ({ ...prev, [userId]: busy }));
+  };
+
+  const openConfirmDialog = ({ title, message, onConfirm, confirmLabel }) => {
+    setConfirmDialog({
+      open: true,
+      title,
+      message,
+      confirmLabel: confirmLabel || "Confirm",
+      onConfirm,
+    });
+  };
+
+  const runConfirmDialog = async () => {
+    if (typeof confirmDialog.onConfirm === "function") {
+      await confirmDialog.onConfirm();
+    }
+    setConfirmDialog({
+      open: false,
+      title: "",
+      message: "",
+      confirmLabel: "Confirm",
+      onConfirm: null,
+    });
+  };
+
+  const closeConfirmDialog = () => {
+    setConfirmDialog({
+      open: false,
+      title: "",
+      message: "",
+      confirmLabel: "Confirm",
+      onConfirm: null,
+    });
   };
 
   const showManualAccessLink = async (actionLink, contextLabel) => {
@@ -128,48 +181,82 @@ export default function UsersPage() {
     return () => clearTimeout(id);
   }, [fetchUsers]);
 
-  const inviteUser = async () => {
-    if (!inviteEmail.trim()) {
-      showToast("error", "Please enter an email.");
+  const createUser = async () => {
+    const email = createForm.email.trim().toLowerCase();
+
+    if (!isValidEmail(email)) {
+      showToast("error", "Please enter a valid email address.");
       return;
     }
 
-    setInviting(true);
+    if (createForm.passwordMethod === "direct") {
+      if (createForm.password.length < 8) {
+        showToast("error", "Password must be at least 8 characters.");
+        return;
+      }
+      if (!/[A-Za-z]/.test(createForm.password) || !/\d/.test(createForm.password)) {
+        showToast("error", "Password must include letters and numbers.");
+        return;
+      }
+      if (createForm.password !== createForm.confirmPassword) {
+        showToast("error", "Passwords do not match.");
+        return;
+      }
+    }
+
+    setCreatingUser(true);
     try {
-      const res = await fetch("/api/admin/invite", {
+      const payload = {
+        email,
+        role: createForm.role,
+        first_name: createForm.first_name,
+        last_name: createForm.last_name,
+        phone: createForm.phone,
+        passwordMethod: createForm.passwordMethod,
+        password:
+          createForm.passwordMethod === "direct" ? createForm.password : undefined,
+      };
+
+      const res = await fetch("/api/admin/create-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: inviteEmail.trim(),
-          role: inviteRole || "candidate",
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
 
       if (!res.ok) {
-        const message = [data?.error, data?.details, data?.hint]
-          .filter(Boolean)
-          .join(" | ");
-        throw new Error(message || "Invitation failed");
+        throw new Error(data?.error || "Failed to create user");
       }
 
-      setInviteEmail("");
-      setInviteRole("candidate");
-      if (data?.mode === "existing_user_reset") {
-        showToast(
-          "success",
-          "User already existed. Password setup/reset email sent."
-        );
-      } else if (data?.mode === "existing_user_manual_link") {
-        await showManualAccessLink(data?.actionLink, "Invite");
+      if (
+        data?.mode === "existing_user_manual_link" ||
+        data?.mode === "manual_link"
+      ) {
+        await showManualAccessLink(data?.actionLink, "Create user");
+      } else if (data?.mode === "existing_user_reset") {
+        showToast("success", "User exists. Access email sent.");
+      } else if (data?.mode === "created_direct") {
+        showToast("success", "User created with direct password.");
       } else {
-        showToast("success", "Invitation sent successfully.");
+        showToast("success", "User created successfully.");
       }
+
+      setCreateForm({
+        first_name: "",
+        last_name: "",
+        email: "",
+        phone: "",
+        role: "candidate",
+        passwordMethod: "invite",
+        password: "",
+        confirmPassword: "",
+      });
+
       fetchUsers();
     } catch (err) {
-      showToast("error", err.message || "Invitation failed");
+      showToast("error", err.message || "Failed to create user");
     } finally {
-      setInviting(false);
+      setCreatingUser(false);
     }
   };
 
@@ -213,14 +300,7 @@ export default function UsersPage() {
     }
   };
 
-  const changeRole = async (userId, currentRole, nextRole) => {
-    if (nextRole === currentRole) return;
-
-    if (!window.confirm(`Change role from ${currentRole} to ${nextRole}?`)) {
-      fetchUsers();
-      return;
-    }
-
+  const applyRoleChange = async (userId, nextRole) => {
     setUserBusy(userId, true);
     try {
       const res = await fetch("/api/admin/change-role", {
@@ -244,18 +324,21 @@ export default function UsersPage() {
     }
   };
 
+  const requestRoleChange = (userId, currentRole, nextRole) => {
+    if (nextRole === currentRole) return;
+
+    openConfirmDialog({
+      title: "Confirm Role Change",
+      message: `Change role from ${currentRole} to ${nextRole}?`,
+      confirmLabel: "Change",
+      onConfirm: () => applyRoleChange(userId, nextRole),
+    });
+  };
+
   const sendResetPassword = async (userId, email) => {
     setActionMenu(null);
     if (!email) {
       showToast("error", "User has no email");
-      return;
-    }
-
-    if (
-      !window.confirm(
-        `Send access/reset email to ${email}? (works for users who never logged in)`
-      )
-    ) {
       return;
     }
 
@@ -282,6 +365,20 @@ export default function UsersPage() {
     } finally {
       setUserBusy(userId, false);
     }
+  };
+
+  const requestSendResetPassword = (userId, email) => {
+    if (!email) {
+      showToast("error", "User has no email");
+      return;
+    }
+
+    openConfirmDialog({
+      title: "Send Access Email",
+      message: `Send access/reset email to ${email}?`,
+      confirmLabel: "Send",
+      onConfirm: () => sendResetPassword(userId, email),
+    });
   };
 
   const generateAccessLink = async (userId, email) => {
@@ -365,15 +462,6 @@ export default function UsersPage() {
       return;
     }
 
-    const targetLabel = user.email || user.id;
-    if (
-      !window.confirm(
-        `Delete user ${targetLabel}? This removes access from Supabase Auth and app data.`
-      )
-    ) {
-      return;
-    }
-
     setUserBusy(user.id, true);
     try {
       const res = await fetch("/api/admin/delete-user", {
@@ -401,6 +489,16 @@ export default function UsersPage() {
     }
   };
 
+  const requestDeleteUser = (user) => {
+    const targetLabel = user.email || user.id;
+    openConfirmDialog({
+      title: "Delete User",
+      message: `Delete user ${targetLabel}? This removes the account from Supabase Auth and app data.`,
+      confirmLabel: "Delete",
+      onConfirm: () => deleteUser(user),
+    });
+  };
+
   const openActionMenu = (event, user) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const menuWidth = 220;
@@ -421,7 +519,7 @@ export default function UsersPage() {
           <div>
             <h1 className="text-3xl font-bold">User Management</h1>
             <p className="text-gray-400 mt-1">
-              Manage invites, roles, profile details, and passwords.
+              Manage users, roles, profile details, and password access.
             </p>
           </div>
           <a
@@ -432,19 +530,48 @@ export default function UsersPage() {
           </a>
         </div>
 
-        <section className="bg-[#111827] border border-gray-800 rounded-2xl p-4 md:p-6">
-          <h2 className="text-lg font-semibold mb-4">Invite User</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <section className="bg-[#111827] border border-gray-800 rounded-2xl p-4 md:p-6 space-y-4">
+          <h2 className="text-lg font-semibold">Create User</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <input
+              value={createForm.first_name}
+              onChange={(e) =>
+                setCreateForm((prev) => ({ ...prev, first_name: e.target.value }))
+              }
+              placeholder="First name"
+              className="rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
+            />
+            <input
+              value={createForm.last_name}
+              onChange={(e) =>
+                setCreateForm((prev) => ({ ...prev, last_name: e.target.value }))
+              }
+              placeholder="Last name"
+              className="rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
+            />
+            <input
+              value={createForm.phone}
+              onChange={(e) =>
+                setCreateForm((prev) => ({ ...prev, phone: e.target.value }))
+              }
+              placeholder="Phone"
+              className="rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
+            />
             <input
               type="email"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="user@example.com"
-              className="md:col-span-2 rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
+              value={createForm.email}
+              onChange={(e) =>
+                setCreateForm((prev) => ({ ...prev, email: e.target.value }))
+              }
+              placeholder="Email"
+              className="rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2 md:col-span-2"
             />
             <select
-              value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value)}
+              value={createForm.role}
+              onChange={(e) =>
+                setCreateForm((prev) => ({ ...prev, role: e.target.value }))
+              }
               className="rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
             >
               {ROLE_OPTIONS.map((role) => (
@@ -453,12 +580,66 @@ export default function UsersPage() {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="rounded-xl border border-gray-800 bg-[#0b1220] p-3 space-y-3">
+            <p className="text-sm font-medium">Password Method</p>
+            <div className="flex flex-col md:flex-row gap-4 text-sm">
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="passwordMethod"
+                  checked={createForm.passwordMethod === "invite"}
+                  onChange={() =>
+                    setCreateForm((prev) => ({ ...prev, passwordMethod: "invite" }))
+                  }
+                />
+                Send invitation email (user sets password)
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="passwordMethod"
+                  checked={createForm.passwordMethod === "direct"}
+                  onChange={() =>
+                    setCreateForm((prev) => ({ ...prev, passwordMethod: "direct" }))
+                  }
+                />
+                Set password directly (admin sets password)
+              </label>
+            </div>
+
+            {createForm.passwordMethod === "direct" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  type="password"
+                  value={createForm.password}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({ ...prev, password: e.target.value }))
+                  }
+                  placeholder="Password"
+                  className="rounded-lg border border-gray-700 bg-[#111827] px-3 py-2"
+                />
+                <input
+                  type="password"
+                  value={createForm.confirmPassword}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({ ...prev, confirmPassword: e.target.value }))
+                  }
+                  placeholder="Confirm password"
+                  className="rounded-lg border border-gray-700 bg-[#111827] px-3 py-2"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end">
             <button
-              onClick={inviteUser}
-              disabled={inviting}
+              onClick={createUser}
+              disabled={creatingUser}
               className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 px-4 py-2 font-medium"
             >
-              {inviting ? "Sending..." : "Send Invitation"}
+              {creatingUser ? "Creating..." : "Create User"}
             </button>
           </div>
         </section>
@@ -529,7 +710,7 @@ export default function UsersPage() {
                         <select
                           value={user.role || "candidate"}
                           onChange={(e) =>
-                            changeRole(user.id, user.role, e.target.value)
+                            requestRoleChange(user.id, user.role, e.target.value)
                           }
                           disabled={busyByUser[user.id]}
                           className="rounded-md border border-gray-700 bg-[#0b1220] px-2 py-1 text-sm"
@@ -620,7 +801,7 @@ export default function UsersPage() {
             </button>
             <button
               onClick={() =>
-                sendResetPassword(actionMenu.user.id, actionMenu.user.email)
+                requestSendResetPassword(actionMenu.user.id, actionMenu.user.email)
               }
               disabled={busyByUser[actionMenu.user.id]}
               className="w-full text-left rounded-md px-3 py-2 text-xs hover:bg-gray-800 disabled:opacity-50"
@@ -644,7 +825,7 @@ export default function UsersPage() {
               Set Password
             </button>
             <button
-              onClick={() => deleteUser(actionMenu.user)}
+              onClick={() => requestDeleteUser(actionMenu.user)}
               disabled={
                 busyByUser[actionMenu.user.id] ||
                 actionMenu.user.id === currentUserId
@@ -660,6 +841,29 @@ export default function UsersPage() {
             </button>
           </div>
         </>
+      )}
+
+      {confirmDialog.open && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-800 bg-[#111827] p-6 space-y-4">
+            <h3 className="text-xl font-semibold">{confirmDialog.title}</h3>
+            <p className="text-sm text-gray-300">{confirmDialog.message}</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={closeConfirmDialog}
+                className="rounded-lg border border-gray-700 px-4 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={runConfirmDialog}
+                className="rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2"
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {editOpen && (

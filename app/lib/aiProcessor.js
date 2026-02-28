@@ -36,6 +36,30 @@ export async function processNextJob() {
         .eq("id", job.candidate_id)
         .single();
 
+      let parsedAnswers = {};
+      try {
+        if (typeof candidate.answers === "string") {
+          parsedAnswers = JSON.parse(candidate.answers || "{}");
+        } else {
+          parsedAnswers = candidate.answers || {};
+        }
+      } catch {
+        parsedAnswers = {};
+      }
+
+      const usesEnvelope =
+        parsedAnswers &&
+        typeof parsedAnswers === "object" &&
+        ("assessment" in parsedAnswers ||
+          "extra_fields" in parsedAnswers ||
+          "form" in parsedAnswers);
+
+      const assessmentAnswers = usesEnvelope
+        ? parsedAnswers.assessment || {}
+        : parsedAnswers || {};
+      const extraFields = usesEnvelope ? parsedAnswers.extra_fields || {} : {};
+      const formMeta = usesEnvelope ? parsedAnswers.form || {} : {};
+
       const MAX_CV_LENGTH = 15000;
 
       const safeCvText =
@@ -64,8 +88,14 @@ Be strict. Penalize shallow answers.
 CV:
 ${safeCvText}
 
+Application Form Context:
+${JSON.stringify(formMeta, null, 2)}
+
+Additional Candidate Fields:
+${JSON.stringify(extraFields, null, 2)}
+
 Assessment Answers:
-${candidate.answers}
+${JSON.stringify(assessmentAnswers, null, 2)}
 `;
 
       const response = await fetch(
@@ -108,7 +138,7 @@ ${candidate.answers}
 
       try {
         parsed = JSON.parse(cleaned);
-      } catch (err) {
+      } catch {
         console.error("JSON PARSE ERROR:", cleaned);
         throw new Error("Invalid JSON from AI");
       }
