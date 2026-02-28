@@ -127,7 +127,7 @@ export default function AppLayout({ children }) {
     const items = [{ path: "/", label: "Home" }];
     if (role === "admin") items.push({ path: "/admin", label: "Admin" });
     if (role === "admin" || role === "hr") {
-      items.push({ path: "/hr", label: "HR" });
+      items.push({ path: "/hr", label: "Form Editor" });
       items.push({ path: "/admin/candidates", label: "Candidates" });
       items.push({ path: "/admin/analytics", label: "Analytics" });
     }
