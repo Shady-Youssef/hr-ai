@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const ROLE_OPTIONS = ["candidate", "hr", "admin"];
 const PAGE_SIZE = 10;
@@ -42,10 +42,28 @@ export default function UsersPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
+  const [actionMenu, setActionMenu] = useState(null);
 
   const showToast = (type, message) => {
     setToast({ type, message });
   };
+
+  const actionMenuStyle = useMemo(() => {
+    if (!actionMenu) return {};
+
+    const menuWidth = 220;
+    const menuHeight = 210;
+    const left = Math.max(
+      8,
+      Math.min(actionMenu.left, window.innerWidth - menuWidth - 8)
+    );
+    const top = Math.max(
+      8,
+      Math.min(actionMenu.top, window.innerHeight - menuHeight - 8)
+    );
+
+    return { left, top };
+  }, [actionMenu]);
 
   useEffect(() => {
     if (!toast) return;
@@ -156,6 +174,7 @@ export default function UsersPage() {
   };
 
   const openEditModal = (user) => {
+    setActionMenu(null);
     setEditingUserId(user.id);
     setEditFirstName(user.first_name || "");
     setEditLastName(user.last_name || "");
@@ -226,6 +245,7 @@ export default function UsersPage() {
   };
 
   const sendResetPassword = async (userId, email) => {
+    setActionMenu(null);
     if (!email) {
       showToast("error", "User has no email");
       return;
@@ -265,6 +285,7 @@ export default function UsersPage() {
   };
 
   const generateAccessLink = async (userId, email) => {
+    setActionMenu(null);
     if (!email) {
       showToast("error", "User has no email");
       return;
@@ -292,6 +313,7 @@ export default function UsersPage() {
   };
 
   const openPasswordModal = (user) => {
+    setActionMenu(null);
     setPasswordUserId(user.id);
     setPasswordUserEmail(user.email || "");
     setNewPassword("");
@@ -337,6 +359,7 @@ export default function UsersPage() {
   };
 
   const deleteUser = async (user) => {
+    setActionMenu(null);
     if (user.id === currentUserId) {
       showToast("error", "You cannot delete your own account.");
       return;
@@ -376,6 +399,19 @@ export default function UsersPage() {
     } finally {
       setUserBusy(user.id, false);
     }
+  };
+
+  const openActionMenu = (event, user) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 220;
+    const preferredLeft = rect.right - menuWidth;
+    const preferredTop = rect.bottom + 8;
+
+    setActionMenu({
+      user,
+      left: preferredLeft,
+      top: preferredTop,
+    });
   };
 
   return (
@@ -512,53 +548,13 @@ export default function UsersPage() {
                         {formatDate(user.updated_at)}
                       </td>
                       <td className="px-3 py-3">
-                        <details className="relative inline-block">
-                          <summary className="list-none cursor-pointer rounded-md bg-slate-700 hover:bg-slate-600 px-3 py-1.5 text-xs font-medium select-none">
-                            Edit
-                          </summary>
-                          <div className="absolute right-0 mt-2 w-52 rounded-lg border border-gray-700 bg-[#0b1220] shadow-xl z-20 p-1">
-                            <button
-                              onClick={() => openEditModal(user)}
-                              disabled={busyByUser[user.id]}
-                              className="w-full text-left rounded-md px-3 py-2 text-xs hover:bg-gray-800 disabled:opacity-50"
-                            >
-                              Edit Profile
-                            </button>
-                            <button
-                              onClick={() => sendResetPassword(user.id, user.email)}
-                              disabled={busyByUser[user.id]}
-                              className="w-full text-left rounded-md px-3 py-2 text-xs hover:bg-gray-800 disabled:opacity-50"
-                            >
-                              Resend Access Email
-                            </button>
-                            <button
-                              onClick={() => generateAccessLink(user.id, user.email)}
-                              disabled={busyByUser[user.id]}
-                              className="w-full text-left rounded-md px-3 py-2 text-xs hover:bg-gray-800 disabled:opacity-50"
-                            >
-                              Generate Access Link
-                            </button>
-                            <button
-                              onClick={() => openPasswordModal(user)}
-                              disabled={busyByUser[user.id]}
-                              className="w-full text-left rounded-md px-3 py-2 text-xs hover:bg-gray-800 disabled:opacity-50"
-                            >
-                              Set Password
-                            </button>
-                            <button
-                              onClick={() => deleteUser(user)}
-                              disabled={busyByUser[user.id] || user.id === currentUserId}
-                              className="w-full text-left rounded-md px-3 py-2 text-xs text-rose-400 hover:bg-gray-800 disabled:opacity-40"
-                              title={
-                                user.id === currentUserId
-                                  ? "You cannot delete your own account."
-                                  : "Delete user"
-                              }
-                            >
-                              Delete User
-                            </button>
-                          </div>
-                        </details>
+                        <button
+                          onClick={(e) => openActionMenu(e, user)}
+                          disabled={busyByUser[user.id]}
+                          className="rounded-md bg-slate-700 hover:bg-slate-600 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+                        >
+                          Edit
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -602,6 +598,68 @@ export default function UsersPage() {
         >
           {toast.message}
         </div>
+      )}
+
+      {actionMenu && (
+        <>
+          <button
+            aria-label="Close menu"
+            className="fixed inset-0 z-30 cursor-default"
+            onClick={() => setActionMenu(null)}
+          />
+          <div
+            className="fixed z-40 w-56 rounded-lg border border-gray-700 bg-[#0b1220] shadow-2xl p-1"
+            style={actionMenuStyle}
+          >
+            <button
+              onClick={() => openEditModal(actionMenu.user)}
+              disabled={busyByUser[actionMenu.user.id]}
+              className="w-full text-left rounded-md px-3 py-2 text-xs hover:bg-gray-800 disabled:opacity-50"
+            >
+              Edit Profile
+            </button>
+            <button
+              onClick={() =>
+                sendResetPassword(actionMenu.user.id, actionMenu.user.email)
+              }
+              disabled={busyByUser[actionMenu.user.id]}
+              className="w-full text-left rounded-md px-3 py-2 text-xs hover:bg-gray-800 disabled:opacity-50"
+            >
+              Resend Access Email
+            </button>
+            <button
+              onClick={() =>
+                generateAccessLink(actionMenu.user.id, actionMenu.user.email)
+              }
+              disabled={busyByUser[actionMenu.user.id]}
+              className="w-full text-left rounded-md px-3 py-2 text-xs hover:bg-gray-800 disabled:opacity-50"
+            >
+              Generate Access Link
+            </button>
+            <button
+              onClick={() => openPasswordModal(actionMenu.user)}
+              disabled={busyByUser[actionMenu.user.id]}
+              className="w-full text-left rounded-md px-3 py-2 text-xs hover:bg-gray-800 disabled:opacity-50"
+            >
+              Set Password
+            </button>
+            <button
+              onClick={() => deleteUser(actionMenu.user)}
+              disabled={
+                busyByUser[actionMenu.user.id] ||
+                actionMenu.user.id === currentUserId
+              }
+              className="w-full text-left rounded-md px-3 py-2 text-xs text-rose-400 hover:bg-gray-800 disabled:opacity-40"
+              title={
+                actionMenu.user.id === currentUserId
+                  ? "You cannot delete your own account."
+                  : "Delete user"
+              }
+            >
+              Delete User
+            </button>
+          </div>
+        </>
       )}
 
       {editOpen && (

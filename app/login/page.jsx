@@ -2,11 +2,11 @@
 
 import { Container } from "../components/ContainerComponent";
 import { Card } from "../components/CardComponent";
-import { Button } from "../components/ButtonComponent";
 
 import { useState } from "react";
 import { supabase } from "../../app/lib/supabase";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -99,6 +99,15 @@ export default function Login() {
                   >
                     {showPassword ? "Hide" : "Show"}
                   </button>
+                </div>
+
+                <div className="text-right">
+                  <Link
+                    href="/forgot-password"
+                    className="text-sm text-blue-400 hover:text-blue-300 transition"
+                  >
+                    Forgot password?
+                  </Link>
                 </div>
 
               </div>

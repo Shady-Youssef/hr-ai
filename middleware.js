@@ -31,7 +31,13 @@ export async function middleware(req) {
   } = await supabase.auth.getUser();
 
   // ✅ Public routes
-  const publicRoutes = ["/", "/login", "/register", "/reset-password"];
+  const publicRoutes = [
+    "/",
+    "/login",
+    "/forgot-password",
+    "/register",
+    "/reset-password",
+  ];
   const isPublic =
     publicRoutes.includes(pathname) ||
     pathname.startsWith("/apply");
