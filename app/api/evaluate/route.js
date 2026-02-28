@@ -7,6 +7,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+const WORKER_TRIGGER_TIMEOUT_MS = 2000;
 
 function parseJsonObject(input) {
   if (!input) return {};
@@ -76,7 +77,7 @@ export async function POST(req) {
           name,
           email,
           cv_text: cvText,
-          answers: JSON.stringify(answersPayload),
+          answers: answersPayload,
           status: "Processing",
         },
       ])
@@ -94,10 +95,30 @@ export async function POST(req) {
       },
     ]);
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(req.url).origin;
-    fetch(`${siteUrl}/api/ai-worker`, {
-      method: "POST",
-    }).catch(() => {});
+    const workerUrl = new URL("/api/ai-worker", req.url).toString();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      WORKER_TRIGGER_TIMEOUT_MS
+    );
+
+    try {
+      await fetch(workerUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          candidateId: candidate.id,
+          maxJobs: 1,
+        }),
+        signal: controller.signal,
+      });
+    } catch (workerError) {
+      if (workerError?.name !== "AbortError") {
+        console.error("WORKER_TRIGGER_ERROR:", workerError);
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     return Response.json({
       message: "Application submitted successfully. AI evaluation started.",

@@ -115,6 +115,8 @@ export default function CandidatesDashboard() {
         return `${base} bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300`;
       case "Rejected":
         return `${base} bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300`;
+      case "Failed":
+        return `${base} bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300`;
       case "Shortlisted":
         return `${base} bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300`;
       case "Reviewed":
@@ -250,6 +252,7 @@ export default function CandidatesDashboard() {
             <option value="Shortlisted">Shortlisted</option>
             <option value="Hired">Hired</option>
             <option value="Rejected">Rejected</option>
+            <option value="Failed">Failed</option>
           </select>
 
           <select

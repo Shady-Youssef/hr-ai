@@ -10,7 +10,8 @@ export default function CandidateDetails() {
 
   const [candidate, setCandidate] = useState(null);
   const [note, setNote] = useState("");
-  const [showToast, setShowToast] = useState(false);
+  const [rerunningAI, setRerunningAI] = useState(false);
+  const [toast, setToast] = useState(null);
 
   const fetchCandidate = async () => {
     const { data, error } = await supabase
@@ -47,8 +48,44 @@ export default function CandidateDetails() {
       .update({ internal_notes: note, updated_at: new Date() })
       .eq("id", candidate.id);
 
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 2500);
+    setToast({
+      type: "success",
+      message: "Note saved successfully",
+    });
+    setTimeout(() => setToast(null), 2500);
+  };
+
+  const rerunAI = async () => {
+    if (!candidate?.id || rerunningAI) return;
+
+    setRerunningAI(true);
+    try {
+      const res = await fetch("/api/hr/re-run-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ candidateId: candidate.id }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to queue AI re-run");
+      }
+
+      setToast({
+        type: "success",
+        message: data?.message || "AI re-run queued successfully.",
+      });
+      setTimeout(() => setToast(null), 3000);
+      fetchCandidate();
+    } catch (error) {
+      setToast({
+        type: "error",
+        message: error?.message || "Failed to queue AI re-run.",
+      });
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      setRerunningAI(false);
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -163,6 +200,14 @@ export default function CandidateDetails() {
         </div>
 
         <div className="flex gap-3 flex-wrap">
+          <button
+            onClick={rerunAI}
+            disabled={rerunningAI}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg transition-all duration-300 hover:bg-purple-700 hover:scale-105 disabled:opacity-60"
+          >
+            {rerunningAI ? "Re-running..." : "Re-run AI"}
+          </button>
+
           <button
             onClick={() => updateStatus("Shortlisted")}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg transition-all duration-300 hover:bg-blue-700 hover:scale-105"
@@ -289,11 +334,15 @@ export default function CandidateDetails() {
         </pre>
       </div>
 
-      {showToast && (
+      {toast && (
         <div className="fixed top-6 right-6 z-50 animate-fadeIn">
-          <div className="flex items-center gap-3 bg-green-600 text-white px-6 py-4 rounded-xl shadow-2xl transition-all duration-300">
+          <div
+            className={`flex items-center gap-3 text-white px-6 py-4 rounded-xl shadow-2xl transition-all duration-300 ${
+              toast.type === "error" ? "bg-red-600" : "bg-green-600"
+            }`}
+          >
             <span className="font-semibold">
-              Note saved successfully
+              {toast.message}
             </span>
           </div>
         </div>
