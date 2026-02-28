@@ -10,7 +10,6 @@ export default function CandidateDetails() {
 
   const [candidate, setCandidate] = useState(null);
   const [note, setNote] = useState("");
-  const [questions, setQuestions] = useState([]);
   const [showToast, setShowToast] = useState(false);
 
   const fetchCandidate = async () => {
@@ -26,18 +25,9 @@ export default function CandidateDetails() {
     }
   };
 
-  const fetchQuestions = async () => {
-    const { data } = await supabase
-      .from("questions")
-      .select("*");
-
-    setQuestions(data || []);
-  };
-
   useEffect(() => {
     if (id) {
       fetchCandidate();
-      fetchQuestions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -257,17 +247,21 @@ export default function CandidateDetails() {
       <div className={`${cardStyle} space-y-4`}>
         <h2 className="text-xl font-semibold">Answers</h2>
 
-        {questions.map((q) => {
-          const answer = assessmentAnswers[q.id];
-          if (!answer) return null;
-
-          return (
-            <div key={q.id} className="border-b pb-4 last:border-none transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-3">
-              <p className="font-semibold mb-2">{q.question_text}</p>
-              <p className="text-gray-700 dark:text-gray-300">{answer}</p>
+        {Object.keys(assessmentAnswers || {}).length === 0 ? (
+          <p className="text-sm text-gray-400">No assessment answers provided.</p>
+        ) : (
+          Object.entries(assessmentAnswers).map(([key, value]) => (
+            <div
+              key={key}
+              className="border-b pb-4 last:border-none transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-3"
+            >
+              <p className="font-semibold mb-2">{key}</p>
+              <p className="text-gray-700 dark:text-gray-300">
+                {String(value || "-")}
+              </p>
             </div>
-          );
-        })}
+          ))
+        )}
       </div>
 
       {Object.keys(extraFields || {}).length > 0 && (

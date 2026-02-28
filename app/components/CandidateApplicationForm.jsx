@@ -42,12 +42,10 @@ export default function CandidateApplicationForm({
 
   const [formConfig, setFormConfig] = useState(null);
   const [formsCatalog, setFormsCatalog] = useState([]);
-  const [questions, setQuestions] = useState([]);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [file, setFile] = useState(null);
-  const [answers, setAnswers] = useState({});
   const [extraFields, setExtraFields] = useState({});
 
   const [currentUser, setCurrentUser] = useState(null);
@@ -106,14 +104,9 @@ export default function CandidateApplicationForm({
           ? `/api/forms/${encodeURIComponent(slug)}`
           : "/api/forms/default";
 
-        const [formRes, formsRes, questionsRes] = await Promise.all([
+        const [formRes, formsRes] = await Promise.all([
           fetch(formEndpoint),
           showFormsCatalog ? fetch("/api/forms") : Promise.resolve(null),
-          supabase
-            .from("questions")
-            .select("*")
-            .eq("is_active", true)
-            .order("created_at", { ascending: true }),
         ]);
 
         const formPayload = await formRes.json();
@@ -136,9 +129,6 @@ export default function CandidateApplicationForm({
           setFormsCatalog(formsPayload.items || []);
         }
 
-        if (!questionsRes.error) {
-          setQuestions(questionsRes.data || []);
-        }
       } catch (err) {
         setError(getFormErrorMessage(err?.message || ""));
       } finally {
@@ -210,7 +200,7 @@ export default function CandidateApplicationForm({
       formData.append("cv", file);
       formData.append("name", name.trim());
       formData.append("email", email.trim().toLowerCase());
-      formData.append("assessment", JSON.stringify(answers));
+      formData.append("assessment", JSON.stringify({}));
       formData.append("extra_fields", JSON.stringify(extraFields));
       formData.append("form_slug", formConfig?.slug || "");
       formData.append("form_title", formConfig?.title || "");
@@ -399,7 +389,7 @@ export default function CandidateApplicationForm({
 
           {customFields.length > 0 && (
             <div className="space-y-5">
-              <h3 className="text-xl font-semibold">Additional Information</h3>
+              <h3 className="text-xl font-semibold">Application Details</h3>
               {customFields.map((field) => (
                 <div key={field.key}>
                   <label className="block text-sm font-medium mb-2">
@@ -452,27 +442,6 @@ export default function CandidateApplicationForm({
                       placeholder={field.placeholder || ""}
                     />
                   )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {questions.length > 0 && (
-            <div className="space-y-6">
-              <h3 className="text-xl font-semibold">Assessment Questions</h3>
-              {questions.map((q) => (
-                <div key={q.id}>
-                  <p className="font-medium mb-2">{q.question_text}</p>
-                  <textarea
-                    rows={4}
-                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none transition"
-                    onChange={(e) =>
-                      setAnswers((prev) => ({
-                        ...prev,
-                        [q.id]: e.target.value,
-                      }))
-                    }
-                  />
                 </div>
               ))}
             </div>

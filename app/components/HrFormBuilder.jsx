@@ -34,6 +34,7 @@ export default function HrFormBuilder() {
   const [editor, setEditor] = useState(emptyEditor());
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [linkDialog, setLinkDialog] = useState({ open: false, value: "" });
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const baseUrl =
     typeof window !== "undefined"
@@ -64,18 +65,19 @@ export default function HrFormBuilder() {
       const items = data?.items || [];
       setForms(items);
 
-      if (!editor.id && items.length > 0) {
-        setEditor({
+      setEditor((prev) => {
+        if (prev.id || items.length === 0) return prev;
+        return {
           ...items[0],
           fields: Array.isArray(items[0].fields) ? items[0].fields : [],
-        });
-      }
+        };
+      });
     } catch (err) {
       showToast("error", err.message || "Failed to load forms");
     } finally {
       setLoading(false);
     }
-  }, [editor.id]);
+  }, []);
 
   useEffect(() => {
     fetchForms();
@@ -129,7 +131,12 @@ export default function HrFormBuilder() {
       showToast("success", editor.id ? "Form updated." : "Form created.");
       fetchForms();
     } catch (err) {
-      showToast("error", err.message || "Failed to save form");
+      const message = String(err?.message || "Failed to save form");
+      if (message.toLowerCase().includes("duplicate key value")) {
+        showToast("error", "Slug already exists. Please choose another slug.");
+      } else {
+        showToast("error", message);
+      }
     } finally {
       setSaving(false);
     }
@@ -253,6 +260,12 @@ export default function HrFormBuilder() {
               {editor.id ? "Edit Form" : "Create Form"}
             </h2>
             <div className="flex gap-2">
+              <button
+                onClick={() => setPreviewOpen(true)}
+                className="px-3 py-2 rounded-lg bg-slate-700 text-white text-sm hover:bg-slate-600"
+              >
+                Preview
+              </button>
               {editor.id && (
                 <button
                   onClick={() => setConfirmDeleteOpen(true)}
@@ -361,47 +374,39 @@ export default function HrFormBuilder() {
                 {editor.fields.map((field, index) => (
                   <div
                     key={`${field.key}-${index}`}
-                    className="grid grid-cols-1 md:grid-cols-12 gap-2 border border-gray-200 dark:border-gray-800 rounded-lg p-3"
+                    className="space-y-3 border border-gray-200 dark:border-gray-800 rounded-lg p-3"
                   >
-                    <input
-                      value={field.label || ""}
-                      onChange={(e) =>
-                        updateField(index, { label: e.target.value })
-                      }
-                      className="md:col-span-3 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
-                      placeholder="Label"
-                    />
-                    <input
-                      value={field.key || ""}
-                      onChange={(e) =>
-                        updateField(index, { key: slugify(e.target.value) })
-                      }
-                      className="md:col-span-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
-                      placeholder="Key"
-                    />
-                    <select
-                      value={field.type || "text"}
-                      onChange={(e) =>
-                        updateField(index, { type: e.target.value })
-                      }
-                      className="md:col-span-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
-                    >
-                      {FIELD_TYPES.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      value={field.placeholder || ""}
-                      onChange={(e) =>
-                        updateField(index, { placeholder: e.target.value })
-                      }
-                      className="md:col-span-3 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
-                      placeholder="Placeholder"
-                    />
-                    <div className="md:col-span-2 flex items-center justify-end gap-2">
-                      <label className="inline-flex items-center gap-1 text-xs">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
+                      <input
+                        value={field.label || ""}
+                        onChange={(e) =>
+                          updateField(index, { label: e.target.value })
+                        }
+                        className="md:col-span-4 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
+                        placeholder="Label"
+                      />
+                      <input
+                        value={field.key || ""}
+                        onChange={(e) =>
+                          updateField(index, { key: slugify(e.target.value) })
+                        }
+                        className="md:col-span-3 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
+                        placeholder="Key"
+                      />
+                      <select
+                        value={field.type || "text"}
+                        onChange={(e) =>
+                          updateField(index, { type: e.target.value })
+                        }
+                        className="md:col-span-3 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
+                      >
+                        {FIELD_TYPES.map((type) => (
+                          <option key={type} value={type}>
+                            {type}
+                          </option>
+                        ))}
+                      </select>
+                      <label className="md:col-span-2 inline-flex items-center gap-2 rounded-md border border-gray-700 bg-[#0b1220] px-2 py-1.5 text-xs">
                         <input
                           type="checkbox"
                           checked={Boolean(field.required)}
@@ -411,26 +416,39 @@ export default function HrFormBuilder() {
                         />
                         Required
                       </label>
-                      <button
-                        onClick={() => moveField(index, -1)}
-                        disabled={index === 0}
-                        className="text-xs px-2 py-1 rounded bg-gray-700 text-white hover:bg-gray-600 disabled:opacity-40"
-                      >
-                        Up
-                      </button>
-                      <button
-                        onClick={() => moveField(index, 1)}
-                        disabled={index === editor.fields.length - 1}
-                        className="text-xs px-2 py-1 rounded bg-gray-700 text-white hover:bg-gray-600 disabled:opacity-40"
-                      >
-                        Down
-                      </button>
-                      <button
-                        onClick={() => removeField(index)}
-                        className="text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700"
-                      >
-                        Remove
-                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
+                      <input
+                        value={field.placeholder || ""}
+                        onChange={(e) =>
+                          updateField(index, { placeholder: e.target.value })
+                        }
+                        className="md:col-span-8 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
+                        placeholder="Placeholder"
+                      />
+                      <div className="md:col-span-4 flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => moveField(index, -1)}
+                          disabled={index === 0}
+                          className="text-xs px-2 py-1 rounded bg-gray-700 text-white hover:bg-gray-600 disabled:opacity-40"
+                        >
+                          Up
+                        </button>
+                        <button
+                          onClick={() => moveField(index, 1)}
+                          disabled={index === editor.fields.length - 1}
+                          className="text-xs px-2 py-1 rounded bg-gray-700 text-white hover:bg-gray-600 disabled:opacity-40"
+                        >
+                          Down
+                        </button>
+                        <button
+                          onClick={() => removeField(index)}
+                          className="text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
 
                     {field.type === "select" && (
@@ -534,6 +552,92 @@ export default function HrFormBuilder() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-800 bg-[#111827] p-6 space-y-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-2xl font-semibold">
+                  {editor.title || "Untitled Form"}
+                </h3>
+                <p className="text-sm text-gray-400 mt-1">
+                  {editor.subject || "No subject"}
+                </p>
+              </div>
+              <button
+                onClick={() => setPreviewOpen(false)}
+                className="rounded-lg border border-gray-700 px-3 py-1.5 text-sm"
+              >
+                Close
+              </button>
+            </div>
+
+            {editor.description && (
+              <p className="text-sm text-gray-300">{editor.description}</p>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Full Name *</label>
+                <input
+                  disabled
+                  className="mt-1 w-full rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
+                  placeholder="Candidate full name"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Email *</label>
+                <input
+                  disabled
+                  className="mt-1 w-full rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
+                  placeholder="candidate@email.com"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">CV Upload *</label>
+                <div className="mt-1 rounded-lg border-2 border-dashed border-gray-700 bg-[#0b1220] px-3 py-8 text-center text-sm text-gray-400">
+                  PDF or CSV upload area
+                </div>
+              </div>
+
+              {editor.fields.map((field, index) => (
+                <div key={`${field.key}-preview-${index}`}>
+                  <label className="text-sm font-medium">
+                    {field.label || `Field ${index + 1}`}
+                    {field.required ? " *" : ""}
+                  </label>
+                  {field.type === "textarea" ? (
+                    <textarea
+                      disabled
+                      rows={3}
+                      className="mt-1 w-full rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
+                      placeholder={field.placeholder || ""}
+                    />
+                  ) : field.type === "select" ? (
+                    <select
+                      disabled
+                      className="mt-1 w-full rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
+                    >
+                      <option>Select...</option>
+                      {(field.options || []).map((option) => (
+                        <option key={option}>{option}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      disabled
+                      type={field.type || "text"}
+                      className="mt-1 w-full rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
+                      placeholder={field.placeholder || ""}
+                    />
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>
