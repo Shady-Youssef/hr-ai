@@ -25,6 +25,19 @@ function emptyEditor() {
   };
 }
 
+function isGenericFieldKey(value) {
+  return /^field[-_]?\d*$/.test(String(value || "").toLowerCase());
+}
+
+function getStableFieldKey(field, index) {
+  const provided = slugify(field?.key || "");
+  if (!provided || isGenericFieldKey(provided)) {
+    const fromLabel = slugify(field?.label || "");
+    return fromLabel || `field-${index + 1}`;
+  }
+  return provided;
+}
+
 export default function HrFormBuilder() {
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +48,7 @@ export default function HrFormBuilder() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [linkDialog, setLinkDialog] = useState({ open: false, value: "" });
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [aiGuideOpen, setAiGuideOpen] = useState(false);
 
   const baseUrl =
     typeof window !== "undefined"
@@ -103,13 +117,18 @@ export default function HrFormBuilder() {
 
     setSaving(true);
     try {
+      const normalizedFields = (editor.fields || []).map((field, index) => ({
+        ...field,
+        key: getStableFieldKey(field, index),
+      }));
+
       const payload = {
         title: editor.title,
         slug,
         subject: editor.subject,
         description: editor.description,
         is_active: editor.is_active,
-        fields: editor.fields,
+        fields: normalizedFields,
       };
 
       const endpoint = editor.id ? `/api/hr/forms/${editor.id}` : "/api/hr/forms";
@@ -168,8 +187,8 @@ export default function HrFormBuilder() {
       fields: [
         ...prev.fields,
         {
-          key: `field_${nextIndex}`,
-          label: `Field ${nextIndex}`,
+          key: "",
+          label: `Question ${nextIndex}`,
           type: "text",
           required: false,
           placeholder: "",
@@ -311,14 +330,23 @@ export default function HrFormBuilder() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium">Form Subject</label>
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-sm font-medium">Job Role (Used by AI)</label>
+                <button
+                  type="button"
+                  onClick={() => setAiGuideOpen(true)}
+                  className="text-xs rounded-md border border-blue-500/40 px-2 py-1 text-blue-400 hover:bg-blue-500/10"
+                >
+                  AI Guide
+                </button>
+              </div>
               <input
                 value={editor.subject || ""}
                 onChange={(e) =>
                   setEditor((prev) => ({ ...prev, subject: e.target.value }))
                 }
                 className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2"
-                placeholder="Frontend Developer Position"
+                placeholder="Frontend Developer"
               />
             </div>
             <div className="flex items-end">
@@ -339,7 +367,7 @@ export default function HrFormBuilder() {
           </div>
 
           <div>
-            <label className="text-sm font-medium">Description</label>
+            <label className="text-sm font-medium">Role Notes for AI (Optional)</label>
             <textarea
               value={editor.description || ""}
               onChange={(e) =>
@@ -347,7 +375,7 @@ export default function HrFormBuilder() {
               }
               rows={3}
               className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2"
-              placeholder="Describe this application form..."
+              placeholder="Describe key responsibilities, required stack, and must-have skills for this role."
             />
           </div>
 
@@ -364,7 +392,7 @@ export default function HrFormBuilder() {
 
             <p className="text-xs text-gray-500">
               Base fields (Full Name, Email, CV) stay available. Add optional custom
-              fields per form.
+              fields per form. Field IDs are generated automatically from labels.
             </p>
 
             {editor.fields.length === 0 ? (
@@ -373,7 +401,7 @@ export default function HrFormBuilder() {
               <div className="space-y-3">
                 {editor.fields.map((field, index) => (
                   <div
-                    key={`${field.key}-${index}`}
+                    key={index}
                     className="space-y-3 border border-gray-200 dark:border-gray-800 rounded-lg p-3"
                   >
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
@@ -385,20 +413,12 @@ export default function HrFormBuilder() {
                         className="md:col-span-4 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
                         placeholder="Label"
                       />
-                      <input
-                        value={field.key || ""}
-                        onChange={(e) =>
-                          updateField(index, { key: slugify(e.target.value) })
-                        }
-                        className="md:col-span-3 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
-                        placeholder="Key"
-                      />
                       <select
                         value={field.type || "text"}
                         onChange={(e) =>
                           updateField(index, { type: e.target.value })
                         }
-                        className="md:col-span-3 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
+                        className="md:col-span-4 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
                       >
                         {FIELD_TYPES.map((type) => (
                           <option key={type} value={type}>
@@ -406,7 +426,7 @@ export default function HrFormBuilder() {
                           </option>
                         ))}
                       </select>
-                      <label className="md:col-span-2 inline-flex items-center gap-2 rounded-md border border-gray-700 bg-[#0b1220] px-2 py-1.5 text-xs">
+                      <label className="md:col-span-4 inline-flex items-center gap-2 rounded-md border border-gray-700 bg-[#0b1220] px-2 py-1.5 text-xs">
                         <input
                           type="checkbox"
                           checked={Boolean(field.required)}
@@ -417,6 +437,11 @@ export default function HrFormBuilder() {
                         Required
                       </label>
                     </div>
+
+                    <p className="text-[11px] text-gray-400">
+                      Internal field ID:{" "}
+                      <span className="font-mono">{getStableFieldKey(field, index)}</span>
+                    </p>
 
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
                       <input
@@ -638,6 +663,36 @@ export default function HrFormBuilder() {
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {aiGuideOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="w-full max-w-xl rounded-2xl border border-gray-800 bg-[#111827] p-6 space-y-4">
+            <h3 className="text-xl font-semibold">AI Role Guide</h3>
+            <p className="text-sm text-gray-300">
+              Use <strong>Job Role</strong> and <strong>Role Notes for AI</strong>{" "}
+              to tell the model what this form is hiring for. The evaluator will use
+              this context to penalize CVs that do not match the target role.
+            </p>
+            <div className="rounded-lg border border-gray-700 bg-[#0b1220] p-3 text-sm text-gray-300 space-y-2">
+              <p>
+                <strong>Example Job Role:</strong> Frontend Developer (React/Next.js)
+              </p>
+              <p>
+                <strong>Example Role Notes:</strong> Must-have: React, TypeScript,
+                state management, API integration, testing.
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setAiGuideOpen(false)}
+                className="rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2"
+              >
+                Got it
+              </button>
             </div>
           </div>
         </div>

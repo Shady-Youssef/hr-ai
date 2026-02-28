@@ -46,7 +46,6 @@ export async function POST(req) {
         attempts: 0,
         error: null,
         created_at: nowIso,
-        updated_at: nowIso,
       },
     ]);
 

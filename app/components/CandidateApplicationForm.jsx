@@ -205,6 +205,7 @@ export default function CandidateApplicationForm({
       formData.append("form_slug", formConfig?.slug || "");
       formData.append("form_title", formConfig?.title || "");
       formData.append("form_subject", formConfig?.subject || "");
+      formData.append("form_description", formConfig?.description || "");
 
       const res = await fetch("/api/evaluate", {
         method: "POST",

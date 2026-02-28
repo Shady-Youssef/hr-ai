@@ -53,6 +53,7 @@ export async function POST(req) {
     const formSlug = String(formData.get("form_slug") || "").trim();
     const formTitle = String(formData.get("form_title") || "").trim();
     const formSubject = String(formData.get("form_subject") || "").trim();
+    const formDescription = String(formData.get("form_description") || "").trim();
 
     if (!file) {
       return Response.json({ result: "No file uploaded" }, { status: 400 });
@@ -65,6 +66,7 @@ export async function POST(req) {
         slug: formSlug || null,
         title: formTitle || null,
         subject: formSubject || null,
+        description: formDescription || null,
       },
       assessment,
       extra_fields: extraFields,

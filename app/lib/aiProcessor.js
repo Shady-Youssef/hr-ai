@@ -189,6 +189,8 @@ Return ONLY valid JSON in this exact format:
 }
 
 Evaluate ALL submitted inputs, including custom fields and assessment responses.
+Use the Application Form Context as the target role definition.
+If the CV and answers do not match the target role/stack, reduce scores and explain the mismatch.
 Be strict. Penalize shallow answers.
 
 CV:
