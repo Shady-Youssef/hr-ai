@@ -243,6 +243,7 @@ export default function ProfilePage() {
         <div className="flex items-center gap-6 flex-wrap">
           <img
             src={preview || profile.avatar_url || "/default-avatar.png"}
+            alt="Profile avatar"
             className="w-24 h-24 rounded-full object-cover border"
           />
 

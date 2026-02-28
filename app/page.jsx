@@ -1,20 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CandidateApplicationForm from "./components/CandidateApplicationForm";
 import { supabase } from "./lib/supabase";
 
-function QuickCard({ label, value }) {
+function QuickCard({ label, value, index }) {
   return (
-    <div className="rounded-xl border border-gray-800 bg-[#111827] p-4">
+    <div
+      className="rounded-xl border border-gray-800 bg-[#111827] p-4 animate-riseIn"
+      style={{ animationDelay: `${index * 70}ms` }}
+    >
       <p className="text-xs text-gray-400">{label}</p>
       <p className="text-2xl font-bold mt-1">{value}</p>
     </div>
   );
 }
 
-function TeamHome() {
+function WorkspaceCard({ href, title, description, index }) {
+  return (
+    <Link
+      href={href}
+      className="rounded-xl border border-gray-800 bg-[#111827] p-4 hover:border-blue-500 hover:-translate-y-0.5 transition animate-riseIn"
+      style={{ animationDelay: `${index * 90}ms` }}
+    >
+      <p className="font-semibold">{title}</p>
+      <p className="text-sm text-gray-400 mt-1">{description}</p>
+    </Link>
+  );
+}
+
+function TeamHome({ role }) {
   const [stats, setStats] = useState({
     total: 0,
     processing: 0,
@@ -24,9 +40,7 @@ function TeamHome() {
 
   useEffect(() => {
     const loadStats = async () => {
-      const { data } = await supabase
-        .from("candidates")
-        .select("status");
+      const { data } = await supabase.from("candidates").select("status");
 
       const list = data || [];
       setStats({
@@ -42,63 +56,73 @@ function TeamHome() {
     loadStats();
   }, []);
 
+  const actions = useMemo(() => {
+    const common = [
+      {
+        href: "/hr",
+        title: "Form Builder",
+        description: "Create and manage job application forms.",
+      },
+      {
+        href: "/admin/candidates",
+        title: "Candidates",
+        description: "Review candidate status and AI evaluations.",
+      },
+      {
+        href: "/admin/analytics",
+        title: "Analytics",
+        description: "Track funnel health and score trends.",
+      },
+    ];
+
+    if (role === "admin") {
+      return [
+        ...common,
+        {
+          href: "/admin/users",
+          title: "User Management",
+          description: "Invite users, assign roles, and manage access.",
+        },
+      ];
+    }
+
+    return [
+      ...common,
+      {
+        href: "/profile",
+        title: "Profile & Preferences",
+        description: "Update your profile, avatar, and workspace settings.",
+      },
+    ];
+  }, [role]);
+
   return (
-    <div className="min-h-screen p-4 md:p-8">
+    <div className="min-h-screen p-2 sm:p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
-        <div>
+        <div className="animate-riseIn">
           <h1 className="text-3xl font-bold">Team Workspace</h1>
           <p className="text-gray-400 mt-2">
-            Quick access to forms, candidates, analytics, and user operations.
+            Quick access to core recruiting workflows and live pipeline metrics.
           </p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <QuickCard label="Total Candidates" value={stats.total} />
-          <QuickCard label="Processing" value={stats.processing} />
-          <QuickCard label="Reviewed" value={stats.reviewed} />
-          <QuickCard label="Hired" value={stats.hired} />
+          <QuickCard label="Total Candidates" value={stats.total} index={0} />
+          <QuickCard label="Processing" value={stats.processing} index={1} />
+          <QuickCard label="Reviewed" value={stats.reviewed} index={2} />
+          <QuickCard label="Hired" value={stats.hired} index={3} />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          <Link
-            href="/hr"
-            className="rounded-xl border border-gray-800 bg-[#111827] p-4 hover:border-blue-500 transition"
-          >
-            <p className="font-semibold">Form Builder</p>
-            <p className="text-sm text-gray-400 mt-1">
-              Create and manage job application forms.
-            </p>
-          </Link>
-
-          <Link
-            href="/admin/candidates"
-            className="rounded-xl border border-gray-800 bg-[#111827] p-4 hover:border-blue-500 transition"
-          >
-            <p className="font-semibold">Candidates</p>
-            <p className="text-sm text-gray-400 mt-1">
-              Review candidate status and results.
-            </p>
-          </Link>
-
-          <Link
-            href="/admin/analytics"
-            className="rounded-xl border border-gray-800 bg-[#111827] p-4 hover:border-blue-500 transition"
-          >
-            <p className="font-semibold">Analytics</p>
-            <p className="text-sm text-gray-400 mt-1">
-              Track funnel and score trends.
-            </p>
-          </Link>
-
-          <Link
-            href="/admin/users"
-            className="rounded-xl border border-gray-800 bg-[#111827] p-4 hover:border-blue-500 transition"
-          >
-            <p className="font-semibold">User Management</p>
-            <p className="text-sm text-gray-400 mt-1">
-              Invite, edit roles, and manage access.
-            </p>
-          </Link>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          {actions.map((action, index) => (
+            <WorkspaceCard
+              key={action.title}
+              href={action.href}
+              title={action.title}
+              description={action.description}
+              index={index}
+            />
+          ))}
         </div>
       </div>
     </div>
@@ -160,7 +184,7 @@ export default function Home() {
   }
 
   if (teamRole === "admin" || teamRole === "hr") {
-    return <TeamHome />;
+    return <TeamHome role={teamRole} />;
   }
 
   return <CandidateApplicationForm allowFormSelection />;
