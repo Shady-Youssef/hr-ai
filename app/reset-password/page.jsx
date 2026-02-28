@@ -22,28 +22,64 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     const initializeRecoveryFlow = async () => {
       try {
-        const url = new URL(window.location.href);
-        const code = url.searchParams.get("code");
-        const hasRecoveryContext =
-          Boolean(code) ||
-          url.searchParams.get("type") === "recovery" ||
-          url.hash.includes("type=recovery");
+        const {
+          data: { session: existingSession },
+        } = await supabase.auth.getSession();
 
-        if (!hasRecoveryContext) {
-          setError(
-            "This page is only available from a valid password recovery link."
-          );
+        if (existingSession?.user) {
           setLoadingSession(false);
           return;
         }
+
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get("code");
+        const tokenHash = url.searchParams.get("token_hash");
+        const queryType = url.searchParams.get("type");
+        const hashParams = new URLSearchParams(
+          window.location.hash.replace(/^#/, "")
+        );
+        const hashType = hashParams.get("type");
+        const accessToken = hashParams.get("access_token");
+        const refreshToken = hashParams.get("refresh_token");
+        const flowType = queryType || hashType;
+        let resolved = false;
 
         if (code) {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(
             code
           );
           if (exchangeError) {
-            setError(exchangeError.message);
+            throw exchangeError;
           }
+          resolved = true;
+        }
+
+        if (!resolved && tokenHash && flowType === "recovery") {
+          const { error: otpError } = await supabase.auth.verifyOtp({
+            type: "recovery",
+            token_hash: tokenHash,
+          });
+          if (otpError) {
+            throw otpError;
+          }
+          resolved = true;
+        }
+
+        if (!resolved && accessToken && refreshToken) {
+          const { error: setSessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (setSessionError) {
+            throw setSessionError;
+          }
+          resolved = true;
+        }
+
+        if (!resolved) {
+          throw new Error(
+            "This page is only available from a valid password recovery link."
+          );
         }
 
         const {
@@ -51,10 +87,19 @@ export default function ResetPasswordPage() {
         } = await supabase.auth.getSession();
 
         if (!session?.user) {
-          setError(
-            "Invalid or expired recovery link. Please request a new reset email."
-          );
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          const {
+            data: { session: delayedSession },
+          } = await supabase.auth.getSession();
+
+          if (!delayedSession?.user) {
+            throw new Error(
+              "Invalid or expired recovery link. Please request a new reset email."
+            );
+          }
         }
+
+        window.history.replaceState({}, "", "/reset-password");
       } catch (err) {
         setError(err?.message || "Failed to validate recovery link");
       } finally {

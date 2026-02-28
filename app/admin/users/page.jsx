@@ -14,6 +14,7 @@ function formatDate(value) {
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busyByUser, setBusyByUser] = useState({});
   const [page, setPage] = useState(1);
@@ -76,6 +77,7 @@ export default function UsersPage() {
       setUsers(data.items || []);
       setTotalPages(data.totalPages || 1);
       setTotalUsers(data.total || 0);
+      setCurrentUserId(data.currentUserId || null);
     } catch (err) {
       showToast("error", err.message || "Failed to load users");
     } finally {
@@ -209,7 +211,13 @@ export default function UsersPage() {
       return;
     }
 
-    if (!window.confirm(`Send password reset email to ${email}?`)) return;
+    if (
+      !window.confirm(
+        `Send access/reset email to ${email}? (works for users who never logged in)`
+      )
+    ) {
+      return;
+    }
 
     setUserBusy(userId, true);
     try {
@@ -224,7 +232,7 @@ export default function UsersPage() {
         throw new Error(data?.error || "Failed to send reset email");
       }
 
-      showToast("success", "Reset email sent.");
+      showToast("success", "Access/reset email sent.");
     } catch (err) {
       showToast("error", err.message || "Failed to send reset email");
     } finally {
@@ -274,6 +282,48 @@ export default function UsersPage() {
       showToast("error", err.message || "Failed to set password");
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  const deleteUser = async (user) => {
+    if (user.id === currentUserId) {
+      showToast("error", "You cannot delete your own account.");
+      return;
+    }
+
+    const targetLabel = user.email || user.id;
+    if (
+      !window.confirm(
+        `Delete user ${targetLabel}? This removes access from Supabase Auth and app data.`
+      )
+    ) {
+      return;
+    }
+
+    setUserBusy(user.id, true);
+    try {
+      const res = await fetch("/api/admin/delete-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to delete user");
+      }
+
+      if (data?.warning) {
+        showToast("success", `User deleted with warning: ${data.warning}`);
+      } else {
+        showToast("success", "User deleted successfully.");
+      }
+
+      fetchUsers();
+    } catch (err) {
+      showToast("error", err.message || "Failed to delete user");
+    } finally {
+      setUserBusy(user.id, false);
     }
   };
 
@@ -424,7 +474,7 @@ export default function UsersPage() {
                             disabled={busyByUser[user.id]}
                             className="rounded-md bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-xs font-medium disabled:opacity-60"
                           >
-                            Reset Email
+                            Resend Access
                           </button>
                           <button
                             onClick={() => openPasswordModal(user)}
@@ -432,6 +482,18 @@ export default function UsersPage() {
                             className="rounded-md bg-red-600 hover:bg-red-700 px-3 py-1.5 text-xs font-medium disabled:opacity-60"
                           >
                             Set Password
+                          </button>
+                          <button
+                            onClick={() => deleteUser(user)}
+                            disabled={busyByUser[user.id] || user.id === currentUserId}
+                            className="rounded-md bg-rose-700 hover:bg-rose-800 px-3 py-1.5 text-xs font-medium disabled:opacity-40"
+                            title={
+                              user.id === currentUserId
+                                ? "You cannot delete your own account."
+                                : "Delete user"
+                            }
+                          >
+                            Delete
                           </button>
                         </div>
                       </td>

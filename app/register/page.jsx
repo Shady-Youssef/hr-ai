@@ -26,26 +26,64 @@ export default function RegisterPage() {
   useEffect(() => {
     const initializeInviteFlow = async () => {
       try {
-        const url = new URL(window.location.href);
-        const code = url.searchParams.get("code");
-        const hasInviteContext =
-          Boolean(code) ||
-          url.searchParams.get("type") === "invite" ||
-          url.hash.includes("type=invite");
+        const {
+          data: { session: existingSession },
+        } = await supabase.auth.getSession();
 
-        if (!hasInviteContext) {
-          setError("This page is only available from a valid invite link.");
+        if (existingSession?.user) {
+          setEmail(existingSession.user.email || "");
           setLoadingSession(false);
           return;
         }
+
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get("code");
+        const tokenHash = url.searchParams.get("token_hash");
+        const queryType = url.searchParams.get("type");
+        const hashParams = new URLSearchParams(
+          window.location.hash.replace(/^#/, "")
+        );
+        const hashType = hashParams.get("type");
+        const accessToken = hashParams.get("access_token");
+        const refreshToken = hashParams.get("refresh_token");
+        const flowType = queryType || hashType;
+        let resolved = false;
 
         if (code) {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(
             code
           );
           if (exchangeError) {
-            setError(exchangeError.message);
+            throw exchangeError;
           }
+          resolved = true;
+        }
+
+        if (!resolved && tokenHash && ["invite", "signup", "magiclink"].includes(flowType || "")) {
+          const otpType = flowType === "invite" ? "invite" : "signup";
+          const { error: otpError } = await supabase.auth.verifyOtp({
+            type: otpType,
+            token_hash: tokenHash,
+          });
+          if (otpError) {
+            throw otpError;
+          }
+          resolved = true;
+        }
+
+        if (!resolved && accessToken && refreshToken) {
+          const { error: setSessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (setSessionError) {
+            throw setSessionError;
+          }
+          resolved = true;
+        }
+
+        if (!resolved) {
+          throw new Error("This page is only available from a valid invite link.");
         }
 
         const {
@@ -61,6 +99,7 @@ export default function RegisterPage() {
         }
 
         setEmail(session.user.email || "");
+        window.history.replaceState({}, "", "/register");
       } catch (err) {
         setError(err?.message || "Failed to validate invitation");
       } finally {

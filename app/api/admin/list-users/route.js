@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/requireAdmin";
 const VALID_ROLES = new Set(["candidate", "hr", "admin"]);
 
 export async function GET(req) {
-  const { response } = await requireAdmin();
+  const { response, user: adminUser } = await requireAdmin();
   if (response) return response;
 
   try {
@@ -87,6 +87,7 @@ export async function GET(req) {
       pageSize,
       total,
       totalPages,
+      currentUserId: adminUser.id,
     });
   } catch (err) {
     return Response.json(
