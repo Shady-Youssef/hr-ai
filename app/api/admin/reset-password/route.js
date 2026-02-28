@@ -1,6 +1,11 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/requireAdmin";
 
+function isRateLimitError(error) {
+  const message = (error?.message || "").toLowerCase();
+  return message.includes("rate limit");
+}
+
 export async function POST(req) {
   const { response } = await requireAdmin();
   if (response) return response;
@@ -26,7 +31,28 @@ export async function POST(req) {
       }
     );
 
-    if (error) throw error;
+    if (error) {
+      if (isRateLimitError(error)) {
+        const { data: linkData, error: linkError } =
+          await supabaseAdmin.auth.admin.generateLink({
+            type: "recovery",
+            email: normalizedEmail,
+            options: { redirectTo },
+          });
+
+        if (linkError) throw linkError;
+
+        return Response.json({
+          success: true,
+          mode: "manual_link",
+          message:
+            "Email rate limit exceeded. Use the generated access link manually.",
+          actionLink: linkData?.properties?.action_link || null,
+        });
+      }
+
+      throw error;
+    }
 
     return Response.json({ success: true });
   } catch (err) {

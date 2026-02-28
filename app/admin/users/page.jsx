@@ -57,6 +57,24 @@ export default function UsersPage() {
     setBusyByUser((prev) => ({ ...prev, [userId]: busy }));
   };
 
+  const showManualAccessLink = async (actionLink, contextLabel) => {
+    if (!actionLink) return;
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(actionLink);
+        showToast(
+          "success",
+          `${contextLabel}: email limit hit, access link copied to clipboard.`
+        );
+      } else {
+        window.prompt("Copy this access link and send it to the user:", actionLink);
+      }
+    } catch {
+      window.prompt("Copy this access link and send it to the user:", actionLink);
+    }
+  };
+
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
@@ -124,6 +142,8 @@ export default function UsersPage() {
           "success",
           "User already existed. Password setup/reset email sent."
         );
+      } else if (data?.mode === "existing_user_manual_link") {
+        await showManualAccessLink(data?.actionLink, "Invite");
       } else {
         showToast("success", "Invitation sent successfully.");
       }
@@ -232,7 +252,11 @@ export default function UsersPage() {
         throw new Error(data?.error || "Failed to send reset email");
       }
 
-      showToast("success", "Access/reset email sent.");
+      if (data?.mode === "manual_link") {
+        await showManualAccessLink(data?.actionLink, "Resend access");
+      } else {
+        showToast("success", "Access/reset email sent.");
+      }
     } catch (err) {
       showToast("error", err.message || "Failed to send reset email");
     } finally {

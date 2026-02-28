@@ -3,6 +3,11 @@ import { requireAdmin } from "@/lib/requireAdmin";
 
 const ALLOWED_ROLES = new Set(["candidate", "hr", "admin"]);
 
+function isRateLimitError(error) {
+  const message = (error?.message || "").toLowerCase();
+  return message.includes("rate limit");
+}
+
 async function findAuthUserByEmail(email) {
   const perPage = 200;
 
@@ -76,7 +81,28 @@ export async function POST(req) {
         { redirectTo: resetRedirectTo }
       );
 
-      if (resetError) throw resetError;
+      if (resetError) {
+        if (isRateLimitError(resetError)) {
+          const { data: linkData, error: linkError } =
+            await supabaseAdmin.auth.admin.generateLink({
+              type: "recovery",
+              email: normalizedEmail,
+              options: { redirectTo: resetRedirectTo },
+            });
+
+          if (linkError) throw linkError;
+
+          return Response.json({
+            success: true,
+            mode: "existing_user_manual_link",
+            message:
+              "User already exists and email rate limit was hit. Use the generated access link manually.",
+            actionLink: linkData?.properties?.action_link || null,
+          });
+        }
+
+        throw resetError;
+      }
 
       const { error: profileError } = await supabaseAdmin
         .from("profiles")
