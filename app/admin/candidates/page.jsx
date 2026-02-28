@@ -15,6 +15,17 @@ export default function CandidatesDashboard() {
   const [recommendationFilter, setRecommendationFilter] = useState("All");
   const [sortField, setSortField] = useState(null);
   const [sortDirection, setSortDirection] = useState("desc");
+  const [role, setRole] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [toast, setToast] = useState(null);
+  
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    title: "",
+    message: "",
+    confirmLabel: "Confirm",
+    onConfirm: null,
+  });
 
   const itemsPerPage = 10;
 
@@ -61,6 +72,89 @@ export default function CandidatesDashboard() {
 
     return () => clearInterval(interval);
   }, [fetchCandidates]);
+
+  // ✅ Fetch user role
+  useEffect(() => {
+    const loadRole = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        if (roleData?.role) {
+          setRole(roleData.role);
+        }
+      }
+    };
+    loadRole();
+  }, []);
+
+  const showToast = (type, message) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const openConfirmDialog = ({ title, message, onConfirm, confirmLabel }) => {
+    setConfirmDialog({
+      open: true,
+      title,
+      message,
+      confirmLabel: confirmLabel || "Confirm",
+      onConfirm,
+    });
+  };
+
+  const runConfirmDialog = async () => {
+    if (typeof confirmDialog.onConfirm === "function") {
+      await confirmDialog.onConfirm();
+    }
+    closeConfirmDialog();
+  };
+
+  const closeConfirmDialog = () => {
+    setConfirmDialog({
+      open: false,
+      title: "",
+      message: "",
+      confirmLabel: "Confirm",
+      onConfirm: null,
+    });
+  };
+
+  const deleteCandidate = async (candidateId) => {
+    setDeletingId(candidateId);
+    try {
+      const res = await fetch("/api/admin/delete-candidate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ candidateId }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to delete candidate");
+      }
+
+      showToast("success", "Candidate deleted successfully.");
+      fetchCandidates();
+    } catch (err) {
+      showToast("error", err.message || "Failed to delete candidate");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const requestDeleteCandidate = (candidate) => {
+    const targetLabel = candidate.name || candidate.email || candidate.id;
+    openConfirmDialog({
+      title: "Delete Candidate",
+      message: `Are you sure you want to delete candidate ${targetLabel}? This cannot be undone.`,
+      confirmLabel: "Delete",
+      onConfirm: () => deleteCandidate(candidate.id),
+    });
+  };
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -306,6 +400,7 @@ export default function CandidatesDashboard() {
                   {renderSortButton("created_at", "Date")}
                 </th>
                 <th className="p-4">Details</th>
+                {role === "admin" && <th className="p-4">Actions</th>}
               </tr>
             </thead>
 
@@ -341,6 +436,17 @@ export default function CandidatesDashboard() {
                       View
                     </Link>
                   </td>
+                  {role === "admin" && (
+                    <td className="p-4">
+                      <button
+                        onClick={() => requestDeleteCandidate(c)}
+                        disabled={deletingId === c.id}
+                        className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium px-2 py-1 bg-red-50 dark:bg-red-900/20 rounded disabled:opacity-50"
+                      >
+                        {deletingId === c.id ? "Deleting..." : "Delete"}
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -377,12 +483,23 @@ export default function CandidatesDashboard() {
               
               <div className="text-xs text-gray-500 mt-1 flex justify-between items-center">
                 <span>{formatDate(c.created_at)}</span>
-                <Link
-                  href={`/admin/candidates/${c.id}`}
-                  className="text-blue-600 dark:text-blue-400 hover:underline font-medium flex items-center gap-1"
-                >
-                  View <span aria-hidden="true">&rarr;</span>
-                </Link>
+                <div className="flex items-center gap-3">
+                  {role === "admin" && (
+                    <button
+                      onClick={() => requestDeleteCandidate(c)}
+                      disabled={deletingId === c.id}
+                      className="text-red-600 dark:text-red-400 hover:underline font-medium disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
+                  )}
+                  <Link
+                    href={`/admin/candidates/${c.id}`}
+                    className="text-blue-600 dark:text-blue-400 hover:underline font-medium flex items-center gap-1"
+                  >
+                    View <span aria-hidden="true">&rarr;</span>
+                  </Link>
+                </div>
               </div>
             </div>
           ))}
@@ -416,6 +533,47 @@ export default function CandidatesDashboard() {
         </div>
 
       </Card>
+      
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed right-4 top-4 z-50 px-4 py-3 rounded-lg shadow-xl text-sm ${
+            toast.type === "success" ? "bg-green-600 text-white" : "bg-red-600 text-white"
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          {toast.message}
+        </div>
+      )}
+
+      {/* Confirmation Dialog Modal */}
+      {confirmDialog.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden max-w-sm w-full transform transition-all p-6">
+            <h3 className="text-xl font-bold mb-2">
+              {confirmDialog.title}
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6 text-sm whitespace-pre-wrap">
+              {confirmDialog.message}
+            </p>
+            <div className="flex justify-end gap-3 font-medium">
+              <button
+                onClick={closeConfirmDialog}
+                className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={runConfirmDialog}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition"
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Container>
   );
 }
