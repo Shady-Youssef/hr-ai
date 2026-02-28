@@ -54,6 +54,21 @@ function TeamHome({ role }) {
     };
 
     loadStats();
+
+    const channel = supabase
+      .channel("realtime-home-stats")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "candidates" },
+        () => {
+          loadStats();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const actions = useMemo(() => {

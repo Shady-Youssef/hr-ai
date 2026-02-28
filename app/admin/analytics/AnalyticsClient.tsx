@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { supabase } from "../../lib/supabase";
 import {
   Bar,
   BarChart,
@@ -58,6 +59,23 @@ type Props = {
 export default function AnalyticsClient({ initialData, days }: Props) {
   const router = useRouter();
   const dashboardRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("realtime-analytics")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "candidates" },
+        () => {
+          router.refresh(); // Automatically refresh server data on delete/insert/update
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [router]);
 
   const safeGrowth = useMemo(
     () =>
@@ -212,7 +230,7 @@ export default function AnalyticsClient({ initialData, days }: Props) {
 
             return (
               <div key={stage.name}>
-                <div className="flex justify-between items-center bg-gradient-to-r from-gray-800 to-gray-700 p-4 rounded-lg">
+                <div className="flex justify-between items-center bg-linear-to-r from-gray-800 to-gray-700 p-4 rounded-lg">
                   <div>
                     <p className="text-sm text-gray-400">{stage.name}</p>
                     <p className="text-2xl font-bold">{stage.value}</p>
