@@ -1,59 +1,90 @@
 "use client";
 
-import { useRef, useMemo } from "react";
+import { useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  LineChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
   Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-  FunnelChart,
-  Funnel,
-  LabelList,
-  Legend,
-  BarChart,
-  Bar,
 } from "recharts";
-import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
-export default function AnalyticsClient({
-  initialData,
-  days,
-}: any) {
+type GrowthItem = {
+  date: string;
+  count: number;
+  cumulative: number;
+  avgScore: number;
+};
+
+type FunnelItem = {
+  name: string;
+  value: number;
+};
+
+type ScoreDistItem = {
+  range: string;
+  count: number;
+};
+
+type TopCandidate = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  final_score: number | null;
+};
+
+type AnalyticsData = {
+  growth: GrowthItem[];
+  funnelData: FunnelItem[];
+  scoreDistribution: ScoreDistItem[];
+  conversionRate: number;
+  top5: TopCandidate[];
+};
+
+type Props = {
+  initialData: AnalyticsData;
+  days: number;
+};
+
+export default function AnalyticsClient({ initialData, days }: Props) {
   const router = useRouter();
   const dashboardRef = useRef<HTMLDivElement | null>(null);
 
-  const safeGrowth = useMemo(() => {
-    if (!initialData?.growth) return [];
+  const safeGrowth = useMemo(
+    () =>
+      (initialData?.growth || []).map((item) => ({
+        date: item.date || "",
+        count: Number(item.count) || 0,
+        cumulative: Number(item.cumulative) || 0,
+        avgScore: Number(item.avgScore) || 0,
+      })),
+    [initialData]
+  );
 
-    return initialData.growth.map((item: any) => ({
-      date: item.date || "",
-      count: Number(item.count) || 0,
-      cumulative: Number(item.cumulative) || 0,
-      avgScore: Number(item.avgScore) || 0,
-    }));
-  }, [initialData]);
+  const growthWithMovingAverage = useMemo(
+    () =>
+      safeGrowth.map((item, index, array) => {
+        const start = Math.max(0, index - 2);
+        const slice = array.slice(start, index + 1);
+        const movingAvg =
+          slice.reduce((sum, curr) => sum + curr.avgScore, 0) / slice.length;
 
-  const growthWithMovingAverage = useMemo(() => {
-    return safeGrowth.map((item: any, index: number, array: any[]) => {
-      const start = Math.max(0, index - 2);
-      const slice = array.slice(start, index + 1);
-
-      const movingAvg =
-        slice.reduce((sum, curr) => sum + curr.avgScore, 0) /
-        slice.length;
-
-      return {
-        ...item,
-        movingAvg: movingAvg || 0,
-      };
-    });
-  }, [safeGrowth]);
+        return {
+          ...item,
+          movingAvg: Number(movingAvg.toFixed(2)) || 0,
+        };
+      }),
+    [safeGrowth]
+  );
 
   const exportPDF = async () => {
     if (!dashboardRef.current) return;
@@ -71,22 +102,18 @@ export default function AnalyticsClient({
 
   return (
     <div className="p-6" ref={dashboardRef}>
-      {/* Header */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-4">
-        <h1 className="text-2xl font-bold">
-          Analytics Dashboard
-        </h1>
+        <h1 className="text-2xl font-bold">Analytics Dashboard</h1>
 
         <div className="flex gap-4">
           <select
             value={days}
-            onChange={(e) =>
-              router.push(`/admin/analytics?days=${e.target.value}`)
-            }
+            onChange={(e) => router.push(`/admin/analytics?days=${e.target.value}`)}
             className="p-2 border rounded bg-gray-800"
           >
             <option value="7">Last 7 Days</option>
             <option value="30">Last 30 Days</option>
+            <option value="90">Last 90 Days</option>
           </select>
 
           <button
@@ -98,11 +125,9 @@ export default function AnalyticsClient({
         </div>
       </div>
 
-      {/* ================= CUMULATIVE ================= */}
       <Section title="Cumulative Growth">
         <p className="text-sm text-gray-400 mb-4">
-          Shows the total number of candidates accumulated over time.
-          This helps you understand hiring growth and application volume trends.
+          Total candidates accumulated over time.
         </p>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={safeGrowth}>
@@ -123,11 +148,9 @@ export default function AnalyticsClient({
         </ResponsiveContainer>
       </Section>
 
-      {/* ================= AVG SCORE ================= */}
       <Section title="Average Score Over Time">
         <p className="text-sm text-gray-400 mb-4">
-          Displays the daily average candidate evaluation score.
-          The moving average line smooths fluctuations to highlight the overall quality trend.
+          Daily average score with 3-day moving average.
         </p>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={growthWithMovingAverage}>
@@ -136,7 +159,6 @@ export default function AnalyticsClient({
             <YAxis domain={[0, 100]} />
             <Tooltip />
             <Legend />
-
             <Line
               type="monotone"
               dataKey="avgScore"
@@ -147,7 +169,6 @@ export default function AnalyticsClient({
               activeDot={{ r: 6 }}
               isAnimationActive={false}
             />
-
             <Line
               type="monotone"
               dataKey="movingAvg"
@@ -162,11 +183,9 @@ export default function AnalyticsClient({
         </ResponsiveContainer>
       </Section>
 
-      {/* ================= SCORE DISTRIBUTION ================= */}
       <Section title="Score Distribution">
         <p className="text-sm text-gray-400 mb-4">
-          Shows how candidate scores are distributed across performance ranges.
-          This reveals overall talent quality and concentration levels.
+          Score distribution across candidate ranges.
         </p>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={initialData.scoreDistribution || []}>
@@ -174,76 +193,63 @@ export default function AnalyticsClient({
             <XAxis dataKey="range" />
             <YAxis allowDecimals={false} />
             <Tooltip />
-            <Bar
-              dataKey="count"
-              fill="#6366f1"
-              radius={[4, 4, 0, 0]}
-              isAnimationActive
-            />
+            <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </Section>
 
-      {/* ================= FUNNEL ================= */}
-<Section title="Conversion Funnel">
-  <p className="text-sm text-gray-400 mb-6">
-    Visualizes candidate progression and stage drop-offs in the hiring pipeline.
-  </p>
+      <Section title="Conversion Funnel">
+        <p className="text-sm text-gray-400 mb-6">
+          Candidate progression and drop-offs in the hiring pipeline.
+        </p>
+        <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-6 space-y-6">
+          {(initialData.funnelData || []).map((stage, index, arr) => {
+            const nextStage = arr[index + 1];
+            const dropPercentage =
+              nextStage && stage.value > 0
+                ? (((stage.value - nextStage.value) / stage.value) * 100).toFixed(1)
+                : null;
 
-  <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-6 space-y-6">
-    {(initialData.funnelData || []).map((stage: any, index: number, arr: any[]) => {
-      const nextStage = arr[index + 1];
-      const dropPercentage =
-        nextStage && stage.value
-          ? (((stage.value - nextStage.value) / stage.value) * 100).toFixed(1)
-          : null;
+            return (
+              <div key={stage.name}>
+                <div className="flex justify-between items-center bg-gradient-to-r from-gray-800 to-gray-700 p-4 rounded-lg">
+                  <div>
+                    <p className="text-sm text-gray-400">{stage.name}</p>
+                    <p className="text-2xl font-bold">{stage.value}</p>
+                  </div>
+                  <div className="text-right">
+                    {index === 0 && (
+                      <span className="text-xs text-gray-500">Total Applicants</span>
+                    )}
+                    {index === arr.length - 1 && (
+                      <span className="text-xs text-green-400 font-semibold">
+                        Final Hires
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-      return (
-        <div key={stage.name}>
-          {/* Stage Card */}
-          <div className="flex justify-between items-center bg-gradient-to-r from-gray-800 to-gray-700 p-4 rounded-lg">
-            <div>
-              <p className="text-sm text-gray-400">{stage.name}</p>
-              <p className="text-2xl font-bold">{stage.value}</p>
-            </div>
-
-            <div className="text-right">
-              {index === 0 && (
-                <span className="text-xs text-gray-500">
-                  Total Applicants
-                </span>
-              )}
-              {index === arr.length - 1 && (
-                <span className="text-xs text-green-400 font-semibold">
-                  Final Hires
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Drop indicator */}
-          {dropPercentage && (
-            <div className="flex justify-center items-center text-xs text-red-400 mt-2">
-              ↓ {dropPercentage}% drop
-            </div>
-          )}
+                {dropPercentage && (
+                  <div className="flex justify-center items-center text-xs text-red-400 mt-2">
+                    ↓ {dropPercentage}% drop
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
-      );
-    })}
-  </div>
 
-  <div className="mt-6 text-sm">
-    <span className="text-gray-400">Overall Conversion Rate:</span>{" "}
-    <span className="text-green-400 font-bold text-lg">
-      {initialData.conversionRate}%
-    </span>
-  </div>
-</Section>
+        <div className="mt-6 text-sm">
+          <span className="text-gray-400">Overall Conversion Rate:</span>{" "}
+          <span className="text-green-400 font-bold text-lg">
+            {initialData.conversionRate}%
+          </span>
+        </div>
+      </Section>
 
-      {/* ================= TOP 5 ================= */}
       <Section title="Top 5 Candidates">
         <p className="text-sm text-gray-400 mb-4">
-          Highlights the highest scoring candidates within the selected time range.
+          Highest scoring candidates in the selected period.
         </p>
         <div className="overflow-x-auto">
           <table className="min-w-[700px] w-full text-left">
@@ -256,19 +262,19 @@ export default function AnalyticsClient({
               </tr>
             </thead>
             <tbody>
-              {(initialData.top5 || []).map((c: any) => (
+              {(initialData.top5 || []).map((candidate) => (
                 <tr
-                  key={c.id}
+                  key={candidate.id}
                   className="border-t border-gray-700 hover:bg-gray-800/40 transition"
                 >
-                  <td className="p-3 font-medium">{c.name}</td>
-                  <td className="p-3 text-sm text-gray-400">{c.email}</td>
+                  <td className="p-3 font-medium">{candidate.name || "-"}</td>
+                  <td className="p-3 text-sm text-gray-400">{candidate.email || "-"}</td>
                   <td className="p-3 font-bold text-blue-400">
-                    {c.final_score}
+                    {candidate.final_score ?? "-"}
                   </td>
                   <td className="p-3">
                     <Link
-                      href={`/admin/candidates/${c.id}`}
+                      href={`/admin/candidates/${candidate.id}`}
                       className="text-blue-500 hover:underline text-sm"
                     >
                       View
@@ -284,7 +290,7 @@ export default function AnalyticsClient({
   );
 }
 
-function Section({ title, children }: any) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-16">
       <h2 className="text-xl font-semibold mb-4">{title}</h2>

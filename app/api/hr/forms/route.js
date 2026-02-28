@@ -17,7 +17,7 @@ function normalizeFields(fields) {
     return {
       key: key || `field-${index + 1}`,
       label: String(field.label || `Field ${index + 1}`),
-      type: ["text", "textarea", "email", "number", "select"].includes(field.type)
+      type: ["text", "textarea", "email", "number", "select", "assessment"].includes(field.type)
         ? field.type
         : "text",
       required: Boolean(field.required),

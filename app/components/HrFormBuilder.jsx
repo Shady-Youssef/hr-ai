@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-const FIELD_TYPES = ["text", "textarea", "email", "number", "select"];
+const FIELD_TYPES = ["text", "textarea", "assessment", "email", "number", "select"];
 
 function slugify(value) {
   return String(value || "")
@@ -422,7 +422,7 @@ export default function HrFormBuilder() {
                       >
                         {FIELD_TYPES.map((type) => (
                           <option key={type} value={type}>
-                            {type}
+                            {type === "assessment" ? "assessment" : type}
                           </option>
                         ))}
                       </select>
@@ -442,6 +442,11 @@ export default function HrFormBuilder() {
                       Internal field ID:{" "}
                       <span className="font-mono">{getStableFieldKey(field, index)}</span>
                     </p>
+                    {field.type === "assessment" && (
+                      <p className="text-[11px] text-emerald-300">
+                        This answer is treated as an assessment input for AI scoring.
+                      </p>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
                       <input
@@ -636,7 +641,7 @@ export default function HrFormBuilder() {
                     {field.label || `Field ${index + 1}`}
                     {field.required ? " *" : ""}
                   </label>
-                  {field.type === "textarea" ? (
+                  {field.type === "textarea" || field.type === "assessment" ? (
                     <textarea
                       disabled
                       rows={3}

@@ -77,6 +77,7 @@ export default function AppLayout({ children }) {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMobileOpen(false);
     setProfileOpen(false);
   }, [pathname]);

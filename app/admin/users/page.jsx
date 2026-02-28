@@ -41,6 +41,7 @@ export default function UsersPage() {
     confirmPassword: "",
   });
   const [creatingUser, setCreatingUser] = useState(false);
+  const [createUserOpen, setCreateUserOpen] = useState(false);
 
   const [confirmDialog, setConfirmDialog] = useState({
     open: false,
@@ -251,6 +252,7 @@ export default function UsersPage() {
         password: "",
         confirmPassword: "",
       });
+      setCreateUserOpen(false);
 
       fetchUsers();
     } catch (err) {
@@ -522,127 +524,21 @@ export default function UsersPage() {
               Manage users, roles, profile details, and password access.
             </p>
           </div>
-          <a
-            href="/api/admin/export-users"
-            className="inline-flex items-center justify-center bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-medium"
-          >
-            Export CSV
-          </a>
-        </div>
-
-        <section className="bg-[#111827] border border-gray-800 rounded-2xl p-4 md:p-6 space-y-4">
-          <h2 className="text-lg font-semibold">Create User</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            <input
-              value={createForm.first_name}
-              onChange={(e) =>
-                setCreateForm((prev) => ({ ...prev, first_name: e.target.value }))
-              }
-              placeholder="First name"
-              className="rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
-            />
-            <input
-              value={createForm.last_name}
-              onChange={(e) =>
-                setCreateForm((prev) => ({ ...prev, last_name: e.target.value }))
-              }
-              placeholder="Last name"
-              className="rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
-            />
-            <input
-              value={createForm.phone}
-              onChange={(e) =>
-                setCreateForm((prev) => ({ ...prev, phone: e.target.value }))
-              }
-              placeholder="Phone"
-              className="rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
-            />
-            <input
-              type="email"
-              value={createForm.email}
-              onChange={(e) =>
-                setCreateForm((prev) => ({ ...prev, email: e.target.value }))
-              }
-              placeholder="Email"
-              className="rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2 md:col-span-2"
-            />
-            <select
-              value={createForm.role}
-              onChange={(e) =>
-                setCreateForm((prev) => ({ ...prev, role: e.target.value }))
-              }
-              className="rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
-            >
-              {ROLE_OPTIONS.map((role) => (
-                <option key={role} value={role}>
-                  {role}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="rounded-xl border border-gray-800 bg-[#0b1220] p-3 space-y-3">
-            <p className="text-sm font-medium">Password Method</p>
-            <div className="flex flex-col md:flex-row gap-4 text-sm">
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="passwordMethod"
-                  checked={createForm.passwordMethod === "invite"}
-                  onChange={() =>
-                    setCreateForm((prev) => ({ ...prev, passwordMethod: "invite" }))
-                  }
-                />
-                Send invitation email (user sets password)
-              </label>
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="passwordMethod"
-                  checked={createForm.passwordMethod === "direct"}
-                  onChange={() =>
-                    setCreateForm((prev) => ({ ...prev, passwordMethod: "direct" }))
-                  }
-                />
-                Set password directly (admin sets password)
-              </label>
-            </div>
-
-            {createForm.passwordMethod === "direct" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <input
-                  type="password"
-                  value={createForm.password}
-                  onChange={(e) =>
-                    setCreateForm((prev) => ({ ...prev, password: e.target.value }))
-                  }
-                  placeholder="Password"
-                  className="rounded-lg border border-gray-700 bg-[#111827] px-3 py-2"
-                />
-                <input
-                  type="password"
-                  value={createForm.confirmPassword}
-                  onChange={(e) =>
-                    setCreateForm((prev) => ({ ...prev, confirmPassword: e.target.value }))
-                  }
-                  placeholder="Confirm password"
-                  className="rounded-lg border border-gray-700 bg-[#111827] px-3 py-2"
-                />
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-end">
+          <div className="flex items-center gap-2">
             <button
-              onClick={createUser}
-              disabled={creatingUser}
-              className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 px-4 py-2 font-medium"
+              onClick={() => setCreateUserOpen(true)}
+              className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium"
             >
-              {creatingUser ? "Creating..." : "Create User"}
+              Create User
             </button>
+            <a
+              href="/api/admin/export-users"
+              className="inline-flex items-center justify-center bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-medium"
+            >
+              Export CSV
+            </a>
           </div>
-        </section>
+        </div>
 
         <section className="bg-[#111827] border border-gray-800 rounded-2xl p-4 md:p-6">
           <div className="flex flex-col md:flex-row gap-3 mb-4">
@@ -945,6 +841,138 @@ export default function UsersPage() {
                 className="rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 px-4 py-2"
               >
                 {savingPassword ? "Updating..." : "Set Password"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {createUserOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl rounded-2xl border border-gray-800 bg-[#111827] p-6 space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-xl font-semibold">Create User</h3>
+              <button
+                onClick={() => setCreateUserOpen(false)}
+                className="rounded-lg border border-gray-700 px-3 py-1.5 text-sm"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <input
+                value={createForm.first_name}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({ ...prev, first_name: e.target.value }))
+                }
+                placeholder="First name"
+                className="rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
+              />
+              <input
+                value={createForm.last_name}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({ ...prev, last_name: e.target.value }))
+                }
+                placeholder="Last name"
+                className="rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
+              />
+              <input
+                value={createForm.phone}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({ ...prev, phone: e.target.value }))
+                }
+                placeholder="Phone"
+                className="rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
+              />
+              <input
+                type="email"
+                value={createForm.email}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({ ...prev, email: e.target.value }))
+                }
+                placeholder="Email"
+                className="rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2 md:col-span-2"
+              />
+              <select
+                value={createForm.role}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({ ...prev, role: e.target.value }))
+                }
+                className="rounded-lg border border-gray-700 bg-[#0b1220] px-3 py-2"
+              >
+                {ROLE_OPTIONS.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="rounded-xl border border-gray-800 bg-[#0b1220] p-3 space-y-3">
+              <p className="text-sm font-medium">Password Method</p>
+              <div className="flex flex-col md:flex-row gap-4 text-sm">
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="passwordMethod"
+                    checked={createForm.passwordMethod === "invite"}
+                    onChange={() =>
+                      setCreateForm((prev) => ({ ...prev, passwordMethod: "invite" }))
+                    }
+                  />
+                  Send invitation email (user sets password)
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="passwordMethod"
+                    checked={createForm.passwordMethod === "direct"}
+                    onChange={() =>
+                      setCreateForm((prev) => ({ ...prev, passwordMethod: "direct" }))
+                    }
+                  />
+                  Set password directly (admin sets password)
+                </label>
+              </div>
+
+              {createForm.passwordMethod === "direct" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input
+                    type="password"
+                    value={createForm.password}
+                    onChange={(e) =>
+                      setCreateForm((prev) => ({ ...prev, password: e.target.value }))
+                    }
+                    placeholder="Password"
+                    className="rounded-lg border border-gray-700 bg-[#111827] px-3 py-2"
+                  />
+                  <input
+                    type="password"
+                    value={createForm.confirmPassword}
+                    onChange={(e) =>
+                      setCreateForm((prev) => ({ ...prev, confirmPassword: e.target.value }))
+                    }
+                    placeholder="Confirm password"
+                    className="rounded-lg border border-gray-700 bg-[#111827] px-3 py-2"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setCreateUserOpen(false)}
+                className="rounded-lg border border-gray-700 px-4 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={createUser}
+                disabled={creatingUser}
+                className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 px-4 py-2 font-medium"
+              >
+                {creatingUser ? "Creating..." : "Create User"}
               </button>
             </div>
           </div>

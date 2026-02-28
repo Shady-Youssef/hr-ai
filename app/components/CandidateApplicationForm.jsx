@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 
@@ -31,9 +30,18 @@ function getFormErrorMessage(errorText) {
   return errorText;
 }
 
+async function fetchFormBySlug(slug) {
+  const response = await fetch(`/api/forms/${encodeURIComponent(slug)}`);
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload?.error || "Form not found");
+  }
+  return payload?.item || null;
+}
+
 export default function CandidateApplicationForm({
   slug = null,
-  showFormsCatalog = false,
+  allowFormSelection = false,
 }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -42,11 +50,12 @@ export default function CandidateApplicationForm({
 
   const [formConfig, setFormConfig] = useState(null);
   const [formsCatalog, setFormsCatalog] = useState([]);
+  const [selectedFormSlug, setSelectedFormSlug] = useState(slug || "");
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [file, setFile] = useState(null);
-  const [extraFields, setExtraFields] = useState({});
+  const [fieldValues, setFieldValues] = useState({});
 
   const [currentUser, setCurrentUser] = useState(null);
   const [currentRole, setCurrentRole] = useState(null);
@@ -55,6 +64,19 @@ export default function CandidateApplicationForm({
     () => (Array.isArray(formConfig?.fields) ? formConfig.fields : []),
     [formConfig]
   );
+
+  const assessmentFields = useMemo(
+    () => customFields.filter((field) => field.type === "assessment"),
+    [customFields]
+  );
+  const detailFields = useMemo(
+    () => customFields.filter((field) => field.type !== "assessment"),
+    [customFields]
+  );
+
+  useEffect(() => {
+    setSelectedFormSlug(slug || "");
+  }, [slug]);
 
   useEffect(() => {
     const loadCurrentUser = async () => {
@@ -100,36 +122,59 @@ export default function CandidateApplicationForm({
       setError("");
 
       try {
-        const formEndpoint = slug
-          ? `/api/forms/${encodeURIComponent(slug)}`
-          : "/api/forms/default";
-
-        const [formRes, formsRes] = await Promise.all([
-          fetch(formEndpoint),
-          showFormsCatalog ? fetch("/api/forms") : Promise.resolve(null),
-        ]);
-
-        const formPayload = await formRes.json();
-        if (!formRes.ok) {
-          throw new Error(formPayload?.error || "Form not found");
+        if (slug) {
+          const item = await fetchFormBySlug(slug);
+          if (!item) throw new Error("Form not found");
+          setFormConfig(item);
+          setFormsCatalog([]);
+          setFieldValues({});
+          setLoading(false);
+          return;
         }
 
-        if (!formPayload?.item) {
+        if (allowFormSelection) {
+          const formsResponse = await fetch("/api/forms");
+          const formsPayload = await formsResponse.json();
+          if (!formsResponse.ok) {
+            throw new Error(formsPayload?.error || "Failed to load form list");
+          }
+
+          const items = formsPayload?.items || [];
+          setFormsCatalog(items);
+
+          if (items.length === 0) {
+            throw new Error("No active form available right now.");
+          }
+
+          const validCurrent = items.some((item) => item.slug === selectedFormSlug);
+          const resolvedSlug = validCurrent ? selectedFormSlug : items[0].slug;
+
+          if (resolvedSlug !== selectedFormSlug) {
+            setSelectedFormSlug(resolvedSlug);
+          }
+
+          const item = await fetchFormBySlug(resolvedSlug);
+          if (!item) throw new Error("Form not found");
+          setFormConfig(item);
+          setFieldValues({});
+          setLoading(false);
+          return;
+        }
+
+        const response = await fetch("/api/forms/default");
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.error || "Form not found");
+        }
+        if (!payload?.item) {
           throw new Error("No active form available right now.");
         }
 
-        setFormConfig(formPayload.item);
-        setExtraFields({});
-
-        if (formsRes) {
-          const formsPayload = await formsRes.json();
-          if (!formsRes.ok) {
-            throw new Error(formsPayload?.error || "Failed to load forms list");
-          }
-          setFormsCatalog(formsPayload.items || []);
-        }
-
+        setFormConfig(payload.item);
+        setFormsCatalog([]);
+        setFieldValues({});
       } catch (err) {
+        setFormConfig(null);
         setError(getFormErrorMessage(err?.message || ""));
       } finally {
         setLoading(false);
@@ -137,7 +182,7 @@ export default function CandidateApplicationForm({
     };
 
     loadPageData();
-  }, [slug, showFormsCatalog]);
+  }, [slug, allowFormSelection, selectedFormSlug]);
 
   const handleFileChange = (e) => {
     const selectedFiles = e.target.files;
@@ -186,9 +231,24 @@ export default function CandidateApplicationForm({
     }
 
     for (const field of customFields) {
-      if (field.required && !String(extraFields[field.key] || "").trim()) {
+      if (field.required && !String(fieldValues[field.key] || "").trim()) {
         setError(`Please fill the required field: ${field.label}`);
         return;
+      }
+    }
+
+    const assessmentPayload = {};
+    const extraFieldsPayload = {};
+
+    for (const field of customFields) {
+      const value = String(fieldValues[field.key] || "").trim();
+      if (!value) continue;
+
+      if (field.type === "assessment") {
+        const questionKey = String(field.label || field.key || "assessment").trim();
+        assessmentPayload[questionKey] = value;
+      } else {
+        extraFieldsPayload[field.key] = value;
       }
     }
 
@@ -200,8 +260,8 @@ export default function CandidateApplicationForm({
       formData.append("cv", file);
       formData.append("name", name.trim());
       formData.append("email", email.trim().toLowerCase());
-      formData.append("assessment", JSON.stringify({}));
-      formData.append("extra_fields", JSON.stringify(extraFields));
+      formData.append("assessment", JSON.stringify(assessmentPayload));
+      formData.append("extra_fields", JSON.stringify(extraFieldsPayload));
       formData.append("form_slug", formConfig?.slug || "");
       formData.append("form_title", formConfig?.title || "");
       formData.append("form_subject", formConfig?.subject || "");
@@ -223,6 +283,62 @@ export default function CandidateApplicationForm({
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const renderFieldInput = (field) => {
+    if (field.type === "textarea" || field.type === "assessment") {
+      return (
+        <textarea
+          rows={4}
+          value={fieldValues[field.key] || ""}
+          onChange={(e) =>
+            setFieldValues((prev) => ({
+              ...prev,
+              [field.key]: e.target.value,
+            }))
+          }
+          className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none transition"
+          placeholder={field.placeholder || ""}
+        />
+      );
+    }
+
+    if (field.type === "select") {
+      return (
+        <select
+          value={fieldValues[field.key] || ""}
+          onChange={(e) =>
+            setFieldValues((prev) => ({
+              ...prev,
+              [field.key]: e.target.value,
+            }))
+          }
+          className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none transition"
+        >
+          <option value="">Select...</option>
+          {(field.options || []).map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    return (
+      <input
+        type={field.type || "text"}
+        value={fieldValues[field.key] || ""}
+        onChange={(e) =>
+          setFieldValues((prev) => ({
+            ...prev,
+            [field.key]: e.target.value,
+          }))
+        }
+        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none transition"
+        placeholder={field.placeholder || ""}
+      />
+    );
   };
 
   if (loading) {
@@ -257,22 +373,6 @@ export default function CandidateApplicationForm({
           <p className="text-sm text-red-500">
             {error || "No active form is available right now."}
           </p>
-          {formsCatalog.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm text-gray-400">Try one of these forms:</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {formsCatalog.map((item) => (
-                  <Link
-                    key={item.id}
-                    href={`/apply/${item.slug}`}
-                    className="rounded-lg border border-gray-200 dark:border-gray-800 px-3 py-2 text-sm hover:border-blue-500"
-                  >
-                    {item.title}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -281,36 +381,6 @@ export default function CandidateApplicationForm({
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 py-8 px-4 md:px-6">
       <div className="max-w-5xl mx-auto space-y-6">
-        {showFormsCatalog && formsCatalog.length > 0 && (
-          <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 md:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-              <h2 className="text-lg font-semibold">Open Application Forms</h2>
-              <span className="text-xs text-gray-500">
-                Share form links by role or domain
-              </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {formsCatalog.map((item) => {
-                const active = item.slug === formConfig?.slug;
-                return (
-                  <Link
-                    key={item.id}
-                    href={`/apply/${item.slug}`}
-                    className={`rounded-xl border p-3 transition ${
-                      active
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-500/10"
-                        : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700"
-                    }`}
-                  >
-                    <p className="font-medium">{item.title}</p>
-                    <p className="text-xs text-gray-500 mt-1">/{item.slug}</p>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
         <div className="bg-white dark:bg-gray-900 shadow-2xl rounded-2xl p-6 md:p-10 space-y-7">
           {currentUser && (currentRole === "candidate" || !currentRole) && (
             <div className="flex justify-end">
@@ -320,6 +390,26 @@ export default function CandidateApplicationForm({
               >
                 Logout
               </button>
+            </div>
+          )}
+
+          {allowFormSelection && !slug && formsCatalog.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Job Role You Are Applying For *
+              </label>
+              <select
+                value={selectedFormSlug}
+                onChange={(e) => setSelectedFormSlug(e.target.value)}
+                className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none transition"
+              >
+                {formsCatalog.map((item) => (
+                  <option key={item.id} value={item.slug}>
+                    {item.title}
+                    {item.subject ? ` - ${item.subject}` : ""}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 
@@ -388,61 +478,31 @@ export default function CandidateApplicationForm({
             </div>
           </div>
 
-          {customFields.length > 0 && (
+          {assessmentFields.length > 0 && (
             <div className="space-y-5">
-              <h3 className="text-xl font-semibold">Application Details</h3>
-              {customFields.map((field) => (
+              <h3 className="text-xl font-semibold">Assessment Questions</h3>
+              {assessmentFields.map((field) => (
                 <div key={field.key}>
                   <label className="block text-sm font-medium mb-2">
                     {field.label}
                     {field.required ? " *" : ""}
                   </label>
+                  {renderFieldInput(field)}
+                </div>
+              ))}
+            </div>
+          )}
 
-                  {field.type === "textarea" ? (
-                    <textarea
-                      rows={4}
-                      value={extraFields[field.key] || ""}
-                      onChange={(e) =>
-                        setExtraFields((prev) => ({
-                          ...prev,
-                          [field.key]: e.target.value,
-                        }))
-                      }
-                      className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none transition"
-                      placeholder={field.placeholder || ""}
-                    />
-                  ) : field.type === "select" ? (
-                    <select
-                      value={extraFields[field.key] || ""}
-                      onChange={(e) =>
-                        setExtraFields((prev) => ({
-                          ...prev,
-                          [field.key]: e.target.value,
-                        }))
-                      }
-                      className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none transition"
-                    >
-                      <option value="">Select...</option>
-                      {(field.options || []).map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type={field.type || "text"}
-                      value={extraFields[field.key] || ""}
-                      onChange={(e) =>
-                        setExtraFields((prev) => ({
-                          ...prev,
-                          [field.key]: e.target.value,
-                        }))
-                      }
-                      className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none transition"
-                      placeholder={field.placeholder || ""}
-                    />
-                  )}
+          {detailFields.length > 0 && (
+            <div className="space-y-5">
+              <h3 className="text-xl font-semibold">Additional Details</h3>
+              {detailFields.map((field) => (
+                <div key={field.key}>
+                  <label className="block text-sm font-medium mb-2">
+                    {field.label}
+                    {field.required ? " *" : ""}
+                  </label>
+                  {renderFieldInput(field)}
                 </div>
               ))}
             </div>

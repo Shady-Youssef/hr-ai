@@ -5,8 +5,11 @@ export const dynamic = "force-dynamic";
 
 export default async function AnalyticsPage({
   searchParams,
-}: any) {
-  const parsed = parseInt(searchParams?.days as string);
+}: {
+  searchParams?: Promise<{ days?: string }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const parsed = parseInt(resolvedSearchParams?.days || "", 10);
   const days = isNaN(parsed) ? 30 : parsed;
 
   const data = await getAnalyticsData(days);

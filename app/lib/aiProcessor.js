@@ -5,6 +5,68 @@ const MAX_CV_LENGTH = 15000;
 const STALE_PROCESSING_MINUTES = 15;
 const GROQ_TIMEOUT_MS = 45000;
 
+function clampScore(value) {
+  if (Number.isNaN(Number(value))) return 0;
+  return Math.max(0, Math.min(100, Math.round(Number(value))));
+}
+
+function computeAssessmentHeuristic(assessmentAnswers) {
+  const values = Object.values(assessmentAnswers || {})
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  if (values.length === 0) return 0;
+
+  const totalChars = values.reduce((sum, value) => sum + value.length, 0);
+  const totalWords = values
+    .join(" ")
+    .split(/\s+/)
+    .filter(Boolean).length;
+  const uniqueWords = new Set(
+    values
+      .join(" ")
+      .toLowerCase()
+      .split(/\s+/)
+      .map((word) => word.replace(/[^a-z0-9]/g, ""))
+      .filter(Boolean)
+  ).size;
+
+  const avgChars = totalChars / values.length;
+  const lengthScore = Math.min(50, avgChars / 4);
+  const vocabularyScore = Math.min(30, uniqueWords / 2);
+  const depthScore = Math.min(20, totalWords / 20);
+
+  return clampScore(lengthScore + vocabularyScore + depthScore);
+}
+
+function detectRoleMismatchPenalty(formMeta, cvText) {
+  const roleText = `${formMeta?.title || ""} ${formMeta?.subject || ""} ${
+    formMeta?.description || ""
+  }`
+    .toLowerCase()
+    .trim();
+  const cv = String(cvText || "").toLowerCase();
+
+  if (!roleText) return 0;
+
+  const frontendKeywords = ["frontend", "front-end", "react", "next.js", "ui"];
+  const backendKeywords = ["backend", "back-end", "node", "api", "database"];
+
+  const roleLooksFrontend = frontendKeywords.some((keyword) =>
+    roleText.includes(keyword)
+  );
+  const roleLooksBackend = backendKeywords.some((keyword) =>
+    roleText.includes(keyword)
+  );
+
+  const cvHasFrontend = frontendKeywords.some((keyword) => cv.includes(keyword));
+  const cvHasBackend = backendKeywords.some((keyword) => cv.includes(keyword));
+
+  if (roleLooksFrontend && !cvHasFrontend && cvHasBackend) return 12;
+  if (roleLooksBackend && !cvHasBackend && cvHasFrontend) return 12;
+  return 0;
+}
+
 function getSupabaseAdminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -207,13 +269,26 @@ ${JSON.stringify(assessmentAnswers, null, 2)}
 `;
 
       const parsed = await callGroq(prompt);
-      const finalScore = Number(parsed?.finalScore);
-      const skillsScore = Number(parsed?.skillsScore ?? 0);
-      const experienceScore = Number(parsed?.experienceScore ?? 0);
-      const assessmentScore = Number(parsed?.assessmentScore ?? 0);
+      const aiFinalScore = clampScore(parsed?.finalScore);
+      const skillsScore = clampScore(parsed?.skillsScore ?? 0);
+      const experienceScore = clampScore(parsed?.experienceScore ?? 0);
+      const aiAssessmentScore = clampScore(parsed?.assessmentScore ?? 0);
+      const heuristicAssessmentScore = computeAssessmentHeuristic(
+        assessmentAnswers
+      );
+      const blendedAssessmentScore = clampScore(
+        aiAssessmentScore * 0.7 + heuristicAssessmentScore * 0.3
+      );
+      const calculatedFinal = clampScore(
+        (skillsScore + experienceScore + blendedAssessmentScore) / 3
+      );
+      const roleMismatchPenalty = detectRoleMismatchPenalty(formMeta, safeCvText);
+      const finalScore = clampScore(
+        aiFinalScore * 0.55 + calculatedFinal * 0.45 - roleMismatchPenalty
+      );
       const recommendation = parsed?.recommendation;
 
-      if (Number.isNaN(finalScore) || !recommendation) {
+      if (!recommendation) {
         throw new Error("AI response missing required fields.");
       }
 
@@ -222,9 +297,9 @@ ${JSON.stringify(assessmentAnswers, null, 2)}
         .update({
           ai_result: parsed,
           final_score: finalScore,
-          skills_score: Number.isNaN(skillsScore) ? 0 : skillsScore,
-          experience_score: Number.isNaN(experienceScore) ? 0 : experienceScore,
-          assessment_score: Number.isNaN(assessmentScore) ? 0 : assessmentScore,
+          skills_score: skillsScore,
+          experience_score: experienceScore,
+          assessment_score: blendedAssessmentScore,
           status: recommendation === "Reject" ? "Rejected" : "Reviewed",
         })
         .eq("id", candidate.id);
