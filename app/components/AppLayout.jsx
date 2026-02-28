@@ -158,7 +158,9 @@ export default function AppLayout({ children }) {
         >
           <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-4 md:gap-6">
-              <span className="font-bold text-lg">CSM Dashboard</span>
+              <Link href="/" className="font-bold text-lg hover:text-blue-500 transition-colors">
+                CSM Dashboard
+              </Link>
               <nav className="hidden md:flex items-center gap-4 lg:gap-6">
                 {navItems.map((item) => (
                   <Link

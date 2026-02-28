@@ -251,7 +251,7 @@ export default function AnalyticsClient({ initialData, days }: Props) {
         <p className="text-sm text-gray-400 mb-4">
           Highest scoring candidates in the selected period.
         </p>
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="min-w-[700px] w-full text-left">
             <thead className="border-b border-gray-700">
               <tr>
@@ -284,6 +284,41 @@ export default function AnalyticsClient({ initialData, days }: Props) {
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="md:hidden space-y-3">
+          {(initialData.top5 || []).length === 0 ? (
+            <div className="rounded-xl border border-gray-800 bg-[#0b1220] px-4 py-6 text-center text-sm text-gray-400">
+              No candidate data found.
+            </div>
+          ) : (
+            (initialData.top5 || []).map((candidate) => (
+              <article
+                key={`mobile-${candidate.id}`}
+                className="rounded-xl border border-gray-800 bg-[#0b1220] p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold truncate">{candidate.name || "-"}</p>
+                    <p className="text-sm text-gray-400 break-all mt-1">
+                      {candidate.email || "-"}
+                    </p>
+                  </div>
+                  <p className="text-lg font-bold text-blue-400">
+                    {candidate.final_score ?? "-"}
+                  </p>
+                </div>
+                <div className="mt-3">
+                  <Link
+                    href={`/admin/candidates/${candidate.id}`}
+                    className="text-blue-500 hover:underline text-sm font-medium"
+                  >
+                    View &rarr;
+                  </Link>
+                </div>
+              </article>
+            ))
+          )}
         </div>
       </Section>
     </div>

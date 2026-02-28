@@ -282,10 +282,8 @@ export default function CandidatesDashboard() {
           />
         </div>
 
-                <div className="overflow-x-auto rounded-xl shadow border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
-
+        <div className="hidden md:block overflow-x-auto rounded-xl shadow border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
           <table className="min-w-[900px] w-full text-left">
-
             <thead className="bg-gray-200 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700">
               <tr>
                 <th className="p-4">Name</th>
@@ -341,29 +339,74 @@ export default function CandidatesDashboard() {
                 </tr>
               ))}
             </tbody>
-
           </table>
         </div>
 
-        <div className="flex justify-center items-center gap-4 mt-6 flex-wrap">
+        {/* Mobile View (Cards) */}
+        <div className="flex flex-col gap-4 md:hidden">
+          {paginated.map((c) => (
+            <div
+              key={`mobile-${c.id}`}
+              className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-gray-50 dark:bg-gray-900 shadow-sm flex flex-col gap-2"
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-bold">{c.name}</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {c.email}
+                  </p>
+                </div>
+                <div className={`font-bold text-lg ${getScoreColor(c.final_score)}`}>
+                  {c.final_score}
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-2 text-sm mt-1">
+                <span className={getStatusBadge(c.status)}>
+                  {c.status || "Pending"}
+                </span>
+                <span className="px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-full font-medium">
+                  {c.ai_result?.recommendation || "N/A"}
+                </span>
+              </div>
+              
+              <div className="text-xs text-gray-500 mt-1 flex justify-between items-center">
+                <span>{formatDate(c.created_at)}</span>
+                <Link
+                  href={`/admin/candidates/${c.id}`}
+                  className="text-blue-600 dark:text-blue-400 hover:underline font-medium flex items-center gap-1"
+                >
+                  View <span aria-hidden="true">&rarr;</span>
+                </Link>
+              </div>
+            </div>
+          ))}
+          {paginated.length === 0 && (
+            <div className="text-center p-8 text-gray-500">No candidates found.</div>
+          )}
+        </div>
+
+        <div className="flex justify-center items-center gap-2 md:gap-4 mt-6 flex-nowrap">
           <button
             disabled={page === 1}
             onClick={() => setPage(page - 1)}
-            className="px-4 py-2 border border-gray-400 dark:border-gray-600 rounded disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
+            className="px-3 py-2 md:px-4 border border-gray-400 dark:border-gray-600 text-sm md:text-base rounded disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 flex-shrink-0"
           >
-            Previous
+            <span className="hidden sm:inline">Previous</span>
+            <span className="sm:hidden">Prev</span>
           </button>
 
-          <span className="text-sm">
+          <span className="text-xs md:text-sm whitespace-nowrap">
             Page {page} of {totalPages || 1}
           </span>
 
           <button
             disabled={page === totalPages}
             onClick={() => setPage(page + 1)}
-            className="px-4 py-2 border border-gray-400 dark:border-gray-600 rounded disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
+            className="px-3 py-2 md:px-4 border border-gray-400 dark:border-gray-600 text-sm md:text-base rounded disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 flex-shrink-0"
           >
-            Next
+            <span className="hidden sm:inline">Next</span>
+            <span className="sm:hidden">Next</span>
           </button>
         </div>
 

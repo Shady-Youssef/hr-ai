@@ -568,7 +568,7 @@ export default function UsersPage() {
             </select>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-gray-800">
+          <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-800">
             <table className="min-w-full text-sm">
               <thead className="bg-[#0b1220] text-gray-300">
                 <tr>
@@ -640,18 +640,86 @@ export default function UsersPage() {
             </table>
           </div>
 
+          <div className="md:hidden space-y-3">
+            {loading ? (
+              <div className="rounded-xl border border-gray-800 bg-[#0b1220] px-4 py-6 text-center text-sm text-gray-400">
+                Loading users...
+              </div>
+            ) : users.length === 0 ? (
+              <div className="rounded-xl border border-gray-800 bg-[#0b1220] px-4 py-6 text-center text-sm text-gray-400">
+                No users found.
+              </div>
+            ) : (
+              users.map((user) => (
+                <article
+                  key={`mobile-${user.id}`}
+                  className="rounded-xl border border-gray-800 bg-[#0b1220] p-4 space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold break-all">{user.email || "-"}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {`${user.first_name || "-"} ${user.last_name || "-"}`}
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => openActionMenu(e, user)}
+                      disabled={busyByUser[user.id]}
+                      className="rounded-md bg-slate-700 hover:bg-slate-600 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+                    >
+                      Edit
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <p className="text-gray-400 mb-1">Phone</p>
+                      <p>{user.phone || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 mb-1">Role</p>
+                      <select
+                        value={user.role || "candidate"}
+                        onChange={(e) =>
+                          requestRoleChange(user.id, user.role, e.target.value)
+                        }
+                        disabled={busyByUser[user.id]}
+                        className="w-full rounded-md border border-gray-700 bg-[#111827] px-2 py-1 text-xs"
+                      >
+                        {ROLE_OPTIONS.map((role) => (
+                          <option key={role} value={role}>
+                            {role}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 mb-1">Created</p>
+                      <p>{formatDate(user.created_at)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 mb-1">Updated</p>
+                      <p>{formatDate(user.updated_at)}</p>
+                    </div>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mt-4 text-sm">
             <span className="text-gray-400">
               {totalUsers} users, page {page} of {totalPages}
             </span>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-nowrap">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1 || loading}
                 className="rounded-lg border border-gray-700 px-3 py-1.5 disabled:opacity-50"
               >
-                Previous
+                <span className="hidden sm:inline">Previous</span>
+                <span className="sm:hidden">Prev</span>
               </button>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
