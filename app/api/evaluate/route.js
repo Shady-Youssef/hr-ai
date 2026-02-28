@@ -8,6 +8,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 const WORKER_TRIGGER_TIMEOUT_MS = 2000;
+const CV_BUCKET = "candidate-cvs";
 
 function parseJsonObject(input) {
   if (!input) return {};
@@ -21,9 +22,24 @@ function parseJsonObject(input) {
   }
 }
 
-async function extractCvText(file) {
-  const bytes = await file.arrayBuffer();
-  const buffer = Buffer.from(bytes);
+async function ensureCvBucket() {
+  const { data: existingBucket } = await supabase.storage.getBucket(CV_BUCKET);
+  if (existingBucket) return;
+
+  const { error: createBucketError } = await supabase.storage.createBucket(
+    CV_BUCKET,
+    {
+      public: false,
+      fileSizeLimit: 10 * 1024 * 1024,
+    }
+  );
+
+  if (createBucketError && !/already exists/i.test(createBucketError.message)) {
+    throw createBucketError;
+  }
+}
+
+async function extractCvText(buffer, file) {
   const fileName = (file.name || "").toLowerCase();
   const fileType = (file.type || "").toLowerCase();
   const looksLikeCsv =
@@ -37,6 +53,34 @@ async function extractCvText(file) {
 
   const parsedPdf = await pdf(buffer);
   return parsedPdf?.text || "";
+}
+
+async function uploadCvFile(buffer, file, candidateId) {
+  await ensureCvBucket();
+
+  const originalName = String(file.name || "cv.pdf");
+  const safeName = originalName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `${candidateId}/${Date.now()}-${safeName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(CV_BUCKET)
+    .upload(path, buffer, {
+      contentType: file.type || "application/octet-stream",
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw uploadError;
+  }
+
+  return {
+    bucket: CV_BUCKET,
+    path,
+    name: originalName,
+    mime_type: file.type || "application/octet-stream",
+    size: file.size || null,
+    uploaded_at: new Date().toISOString(),
+  };
 }
 
 export async function POST(req) {
@@ -59,7 +103,9 @@ export async function POST(req) {
       return Response.json({ result: "No file uploaded" }, { status: 400 });
     }
 
-    const cvText = await extractCvText(file);
+    const fileBytes = await file.arrayBuffer();
+    const cvBuffer = Buffer.from(fileBytes);
+    const cvText = await extractCvText(cvBuffer, file);
 
     const answersPayload = {
       form: {
@@ -88,6 +134,21 @@ export async function POST(req) {
 
     if (insertError) {
       throw new Error(insertError.message);
+    }
+
+    try {
+      const cvFileMeta = await uploadCvFile(cvBuffer, file, candidate.id);
+      await supabase
+        .from("candidates")
+        .update({
+          answers: {
+            ...answersPayload,
+            cv: cvFileMeta,
+          },
+        })
+        .eq("id", candidate.id);
+    } catch (cvUploadError) {
+      console.error("CV_UPLOAD_ERROR:", cvUploadError);
     }
 
     await supabase.from("ai_jobs").insert([

@@ -139,6 +139,8 @@ export default function CandidateDetails() {
     : answersObject || {};
   const extraFields = hasEnvelope ? answersObject.extra_fields || {} : {};
   const formMeta = hasEnvelope ? answersObject.form || {} : {};
+  const cvFileMeta = hasEnvelope ? answersObject.cv || null : null;
+  const canDownloadCv = Boolean(cvFileMeta?.path || cvFileMeta?.file_path);
 
   const cardStyle =
     "bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-md border border-gray-100 dark:border-gray-800 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1";
@@ -328,7 +330,21 @@ export default function CandidateDetails() {
 
       {/* CV */}
       <div className={cardStyle}>
-        <h2 className="text-xl font-semibold mb-4">CV Text</h2>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-xl font-semibold">CV Text</h2>
+          {canDownloadCv ? (
+            <a
+              href={`/api/admin/candidates/${candidate.id}/download-cv`}
+              className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition"
+            >
+              Download Uploaded CV
+            </a>
+          ) : (
+            <span className="text-xs text-gray-400">
+              No uploaded CV file available for download.
+            </span>
+          )}
+        </div>
         <pre className="whitespace-pre-wrap text-sm">
           {candidate.cv_text}
         </pre>
