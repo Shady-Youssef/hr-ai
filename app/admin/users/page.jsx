@@ -117,7 +117,14 @@ export default function UsersPage() {
 
       setInviteEmail("");
       setInviteRole("candidate");
-      showToast("success", "Invitation sent successfully.");
+      if (data?.mode === "existing_user_reset") {
+        showToast(
+          "success",
+          "User already existed. Password setup/reset email sent."
+        );
+      } else {
+        showToast("success", "Invitation sent successfully.");
+      }
       fetchUsers();
     } catch (err) {
       showToast("error", err.message || "Invitation failed");
