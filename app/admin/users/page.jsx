@@ -495,7 +495,7 @@ export default function UsersPage() {
     const targetLabel = user.email || user.id;
     openConfirmDialog({
       title: "Delete User",
-      message: `Delete user ${targetLabel}? This removes the account from Supabase Auth and app data.`,
+      message: `Delete user ${targetLabel}? This removes the account and all related user data.`,
       confirmLabel: "Delete",
       onConfirm: () => deleteUser(user),
     });
