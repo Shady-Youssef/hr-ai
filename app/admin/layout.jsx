@@ -15,14 +15,25 @@ export default function AdminLayout({ children }) {
         return;
       }
 
-      const { data: roleData } = await supabase
-        .from("user_roles")
+      const { data: profileRoleData } = await supabase
+        .from("profiles")
         .select("role")
         .eq("id", userData.user.id)
-        .single();
+        .maybeSingle();
 
-      if (!roleData || !roleData.role) {
-        window.location.href = "/login";
+      let role = profileRoleData?.role;
+
+      if (!role) {
+        const { data: userRoleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("id", userData.user.id)
+          .maybeSingle();
+        role = userRoleData?.role;
+      }
+
+      if (!role) {
+        window.location.href = "/";
         return;
       }
 

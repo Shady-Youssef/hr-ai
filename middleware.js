@@ -31,7 +31,7 @@ export async function middleware(req) {
   } = await supabase.auth.getUser();
 
   // ✅ Public routes
-  const publicRoutes = ["/", "/login"];
+  const publicRoutes = ["/", "/login", "/register", "/reset-password"];
   const isPublic =
     publicRoutes.includes(pathname) ||
     pathname.startsWith("/apply");
@@ -49,13 +49,22 @@ export async function middleware(req) {
     return NextResponse.redirect(url);
   }
 
-  const { data: roleData } = await supabase
-  .from("user_roles")
-  .select("role")
-  .eq("id", user.id)
-  .maybeSingle();
+  const { data: profileRoleData } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
 
-const role = roleData?.role;
+  let role = profileRoleData?.role;
+
+  if (!role) {
+    const { data: userRoleData } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    role = userRoleData?.role;
+  }
 
   // 🔴 Admin only
   if (pathname.startsWith("/api/admin")) {

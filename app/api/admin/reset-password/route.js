@@ -1,16 +1,30 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { requireAdmin } from "@/lib/requireAdmin";
 
 export async function POST(req) {
+  const { response } = await requireAdmin();
+  if (response) return response;
+
   try {
     const { email } = await req.json();
+    const normalizedEmail = email?.trim()?.toLowerCase();
+
+    if (!normalizedEmail) {
+      return Response.json({ error: "Email is required" }, { status: 400 });
+    }
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(req.url).origin;
     const redirectTo = new URL(
-      "/login",
-      process.env.NEXT_PUBLIC_SITE_URL
+      "/reset-password",
+      siteUrl
     ).toString();
 
-    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-      redirectTo,
-    });
+    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(
+      normalizedEmail,
+      {
+        redirectTo,
+      }
+    );
 
     if (error) throw error;
 

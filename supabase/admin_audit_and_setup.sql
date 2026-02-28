@@ -21,13 +21,14 @@ create table if not exists public.profiles (
   last_name text,
   phone text,
   avatar_url text,
-  role text default 'hr',
+  role text default 'candidate',
+  created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 
 create table if not exists public.user_roles (
   id uuid primary key references auth.users(id) on delete cascade,
-  role text not null default 'hr',
+  role text not null default 'candidate',
   updated_at timestamptz default now()
 );
 
@@ -70,10 +71,11 @@ alter table public.profiles add column if not exists first_name text;
 alter table public.profiles add column if not exists last_name text;
 alter table public.profiles add column if not exists phone text;
 alter table public.profiles add column if not exists avatar_url text;
-alter table public.profiles add column if not exists role text default 'hr';
+alter table public.profiles add column if not exists role text default 'candidate';
+alter table public.profiles add column if not exists created_at timestamptz default now();
 alter table public.profiles add column if not exists updated_at timestamptz default now();
 
-alter table public.user_roles add column if not exists role text default 'hr';
+alter table public.user_roles add column if not exists role text default 'candidate';
 alter table public.user_roles add column if not exists updated_at timestamptz default now();
 
 -- 4) Indexes
@@ -83,9 +85,36 @@ create index if not exists idx_candidates_created_at on public.candidates(create
 create index if not exists idx_ai_jobs_status_created_at on public.ai_jobs(status, created_at);
 
 -- 5) Sync role source: middleware reads user_roles, invite route currently writes profiles.role
+-- Ensure auth.users creates baseline rows with candidate defaults
+create or replace function public.handle_new_auth_user_defaults()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, role, created_at, updated_at)
+  values (new.id, 'candidate', now(), now())
+  on conflict (id) do nothing;
+
+  insert into public.user_roles (id, role, updated_at)
+  values (new.id, 'candidate', now())
+  on conflict (id) do nothing;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_handle_new_auth_user_defaults on auth.users;
+create trigger trg_handle_new_auth_user_defaults
+after insert on auth.users
+for each row
+execute function public.handle_new_auth_user_defaults();
+
+-- 5b) Sync role source: middleware reads user_roles, invite route writes profiles.role
 -- Backfill missing user_roles from existing profiles
 insert into public.user_roles (id, role, updated_at)
-select p.id, coalesce(p.role, 'hr'), now()
+select p.id, coalesce(p.role, 'candidate'), now()
 from public.profiles p
 left join public.user_roles ur on ur.id = p.id
 where ur.id is null;
@@ -99,7 +128,7 @@ set search_path = public
 as $$
 begin
   insert into public.user_roles (id, role, updated_at)
-  values (new.id, coalesce(new.role, 'hr'), now())
+  values (new.id, coalesce(new.role, 'candidate'), now())
   on conflict (id)
   do update set role = excluded.role, updated_at = now();
   return new;

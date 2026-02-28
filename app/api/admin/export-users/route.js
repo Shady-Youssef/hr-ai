@@ -1,11 +1,19 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { requireAdmin } from "@/lib/requireAdmin";
 
 export async function GET() {
-  const { data } = await supabaseAdmin.from("profiles").select("*");
+  const { response } = await requireAdmin();
+  if (response) return response;
+
+  const { data, error } = await supabaseAdmin.from("profiles").select("*");
+
+  if (error) {
+    return Response.json({ error: error.message }, { status: 500 });
+  }
 
   const header = "First Name,Last Name,Phone,Role\n";
 
-  const rows = data
+  const rows = (data || [])
     .map(
       (u) =>
         `${u.first_name || ""},${u.last_name || ""},${u.phone || ""},${
