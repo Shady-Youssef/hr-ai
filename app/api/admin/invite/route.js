@@ -26,6 +26,22 @@ export async function POST(req) {
 
     return Response.json({ success: true });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    console.error("INVITE_ERROR", {
+      message: err?.message,
+      code: err?.code,
+      details: err?.details,
+      hint: err?.hint,
+      status: err?.status,
+    });
+
+    return Response.json(
+      {
+        error: err?.message || "Invite failed",
+        code: err?.code || null,
+        details: err?.details || null,
+        hint: err?.hint || null,
+      },
+      { status: 500 }
+    );
   }
 }
