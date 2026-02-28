@@ -1,21 +1,29 @@
 import { createClient } from "@supabase/supabase-js";
 
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
+  requireEnv("SUPABASE_SERVICE_ROLE_KEY")
 );
 
-function clampDays(value) {
+function clampDays(value: unknown): number {
   const parsed = Number(value);
   if (Number.isNaN(parsed)) return 30;
   return Math.min(365, Math.max(1, Math.floor(parsed)));
 }
 
-function formatDay(dateValue) {
+function formatDay(dateValue: string): string {
   return new Date(dateValue).toISOString().slice(0, 10);
 }
 
-function scoreRange(score) {
+function scoreRange(score: unknown): string {
   if (score == null || Number.isNaN(Number(score))) return "N/A";
   const value = Number(score);
   if (value < 50) return "0-49";
@@ -26,7 +34,7 @@ function scoreRange(score) {
   return "90-100";
 }
 
-export async function getAnalyticsData(daysInput) {
+export async function getAnalyticsData(daysInput: unknown) {
   const days = clampDays(daysInput);
   const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
