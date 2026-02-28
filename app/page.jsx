@@ -3,6 +3,24 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../app/lib/supabase";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ALLOWED_MIME_TYPES = new Set([
+  "application/pdf",
+  "text/csv",
+  "application/vnd.ms-excel",
+]);
+const ALLOWED_EXTENSIONS = [".pdf", ".csv"];
+
+function isAllowedFile(selectedFile) {
+  if (!selectedFile) return false;
+  const lowerName = (selectedFile.name || "").toLowerCase();
+  const extensionAllowed = ALLOWED_EXTENSIONS.some((ext) =>
+    lowerName.endsWith(ext)
+  );
+  const mimeAllowed = ALLOWED_MIME_TYPES.has(selectedFile.type);
+  return extensionAllowed || mimeAllowed;
+}
+
 export default function Home() {
   const [file, setFile] = useState(null);
   const [name, setName] = useState("");
@@ -12,6 +30,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const [currentUser, setCurrentUser] = useState(null);
+  const [currentRole, setCurrentRole] = useState(null);
 
   useEffect(() => {
     const loadQuestions = async () => {
@@ -23,12 +43,88 @@ export default function Home() {
       if (!error) setQuestions(data);
     };
 
+    const loadCurrentUser = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) {
+        setCurrentUser(null);
+        setCurrentRole(null);
+        return;
+      }
+
+      setCurrentUser(session.user);
+
+      const { data: profileRoleData } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      let role = profileRoleData?.role || null;
+
+      if (!role) {
+        const { data: userRoleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        role = userRoleData?.role || null;
+      }
+
+      setCurrentRole(role);
+    };
+
     loadQuestions();
+    loadCurrentUser();
   }, []);
+
+  const handleFileChange = (e) => {
+    const selectedFiles = e.target.files;
+
+    if (!selectedFiles || selectedFiles.length === 0) {
+      setFile(null);
+      return;
+    }
+
+    if (selectedFiles.length > 1) {
+      setError("Only one file is allowed.");
+      e.target.value = "";
+      return;
+    }
+
+    const selectedFile = selectedFiles[0];
+
+    if (!isAllowedFile(selectedFile)) {
+      setError("Only PDF or CSV files are allowed.");
+      setFile(null);
+      e.target.value = "";
+      return;
+    }
+
+    setError("");
+    setFile(selectedFile);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
 
   const handleSubmit = async () => {
     if (!file || !name || !email) {
       setError("Please complete all required fields.");
+      return;
+    }
+
+    if (!EMAIL_REGEX.test(email.trim())) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    if (!isAllowedFile(file)) {
+      setError("Only PDF or CSV files are allowed.");
       return;
     }
 
@@ -69,12 +165,23 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-6">
       <div className="bg-white dark:bg-gray-900 shadow-2xl rounded-2xl p-8 md:p-12 w-full max-w-3xl space-y-8">
 
+        {currentUser && (currentRole === "candidate" || !currentRole) && (
+          <div className="flex justify-end">
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+            >
+              Logout
+            </button>
+          </div>
+        )}
+
         <div>
           <h1 className="text-3xl font-bold mb-2">
             Apply for Frontend Developer
           </h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm">
-            Please complete the form below and upload your CV (PDF only).
+            Please complete the form below and upload your CV (PDF or CSV only).
           </p>
         </div>
 
@@ -112,14 +219,14 @@ export default function Home() {
         {/* File Upload */}
         <div>
           <label className="block text-sm font-medium mb-2">
-            Upload CV (PDF) *
+            Upload CV (PDF or CSV) *
           </label>
 
           <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-6 text-center hover:border-blue-500 transition cursor-pointer">
             <input
               type="file"
-              accept="application/pdf"
-              onChange={(e) => setFile(e.target.files[0])}
+              accept=".pdf,.csv,application/pdf,text/csv,application/vnd.ms-excel"
+              onChange={handleFileChange}
               className="hidden"
               id="cvUpload"
             />

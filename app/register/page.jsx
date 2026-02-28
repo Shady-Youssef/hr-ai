@@ -170,9 +170,8 @@ export default function RegisterPage() {
 
       if (profileError) throw profileError;
 
-      setSuccess("Registration complete. Redirecting to login...");
-      await supabase.auth.signOut();
-      setTimeout(() => router.push("/login"), 1200);
+      setSuccess("Registration complete. Redirecting to profile setup...");
+      setTimeout(() => router.push("/profile"), 1200);
     } catch (err) {
       setError(err?.message || "Failed to complete registration");
     } finally {

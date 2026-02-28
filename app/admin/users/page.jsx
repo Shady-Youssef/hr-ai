@@ -264,6 +264,33 @@ export default function UsersPage() {
     }
   };
 
+  const generateAccessLink = async (userId, email) => {
+    if (!email) {
+      showToast("error", "User has no email");
+      return;
+    }
+
+    setUserBusy(userId, true);
+    try {
+      const res = await fetch("/api/admin/generate-access-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to generate access link");
+      }
+
+      await showManualAccessLink(data?.actionLink, "Generate access link");
+    } catch (err) {
+      showToast("error", err.message || "Failed to generate access link");
+    } finally {
+      setUserBusy(userId, false);
+    }
+  };
+
   const openPasswordModal = (user) => {
     setPasswordUserId(user.id);
     setPasswordUserEmail(user.email || "");
@@ -485,41 +512,53 @@ export default function UsersPage() {
                         {formatDate(user.updated_at)}
                       </td>
                       <td className="px-3 py-3">
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            onClick={() => openEditModal(user)}
-                            disabled={busyByUser[user.id]}
-                            className="rounded-md bg-yellow-600 hover:bg-yellow-700 px-3 py-1.5 text-xs font-medium disabled:opacity-60"
-                          >
+                        <details className="relative inline-block">
+                          <summary className="list-none cursor-pointer rounded-md bg-slate-700 hover:bg-slate-600 px-3 py-1.5 text-xs font-medium select-none">
                             Edit
-                          </button>
-                          <button
-                            onClick={() => sendResetPassword(user.id, user.email)}
-                            disabled={busyByUser[user.id]}
-                            className="rounded-md bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-xs font-medium disabled:opacity-60"
-                          >
-                            Resend Access
-                          </button>
-                          <button
-                            onClick={() => openPasswordModal(user)}
-                            disabled={busyByUser[user.id]}
-                            className="rounded-md bg-red-600 hover:bg-red-700 px-3 py-1.5 text-xs font-medium disabled:opacity-60"
-                          >
-                            Set Password
-                          </button>
-                          <button
-                            onClick={() => deleteUser(user)}
-                            disabled={busyByUser[user.id] || user.id === currentUserId}
-                            className="rounded-md bg-rose-700 hover:bg-rose-800 px-3 py-1.5 text-xs font-medium disabled:opacity-40"
-                            title={
-                              user.id === currentUserId
-                                ? "You cannot delete your own account."
-                                : "Delete user"
-                            }
-                          >
-                            Delete
-                          </button>
-                        </div>
+                          </summary>
+                          <div className="absolute right-0 mt-2 w-52 rounded-lg border border-gray-700 bg-[#0b1220] shadow-xl z-20 p-1">
+                            <button
+                              onClick={() => openEditModal(user)}
+                              disabled={busyByUser[user.id]}
+                              className="w-full text-left rounded-md px-3 py-2 text-xs hover:bg-gray-800 disabled:opacity-50"
+                            >
+                              Edit Profile
+                            </button>
+                            <button
+                              onClick={() => sendResetPassword(user.id, user.email)}
+                              disabled={busyByUser[user.id]}
+                              className="w-full text-left rounded-md px-3 py-2 text-xs hover:bg-gray-800 disabled:opacity-50"
+                            >
+                              Resend Access Email
+                            </button>
+                            <button
+                              onClick={() => generateAccessLink(user.id, user.email)}
+                              disabled={busyByUser[user.id]}
+                              className="w-full text-left rounded-md px-3 py-2 text-xs hover:bg-gray-800 disabled:opacity-50"
+                            >
+                              Generate Access Link
+                            </button>
+                            <button
+                              onClick={() => openPasswordModal(user)}
+                              disabled={busyByUser[user.id]}
+                              className="w-full text-left rounded-md px-3 py-2 text-xs hover:bg-gray-800 disabled:opacity-50"
+                            >
+                              Set Password
+                            </button>
+                            <button
+                              onClick={() => deleteUser(user)}
+                              disabled={busyByUser[user.id] || user.id === currentUserId}
+                              className="w-full text-left rounded-md px-3 py-2 text-xs text-rose-400 hover:bg-gray-800 disabled:opacity-40"
+                              title={
+                                user.id === currentUserId
+                                  ? "You cannot delete your own account."
+                                  : "Delete user"
+                              }
+                            >
+                              Delete User
+                            </button>
+                          </div>
+                        </details>
                       </td>
                     </tr>
                   ))

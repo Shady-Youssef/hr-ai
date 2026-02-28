@@ -139,9 +139,8 @@ export default function ResetPasswordPage() {
       });
       if (updateError) throw updateError;
 
-      setSuccess("Password updated successfully. Redirecting to login...");
-      await supabase.auth.signOut();
-      setTimeout(() => router.push("/login"), 1200);
+      setSuccess("Password updated successfully. Redirecting to profile setup...");
+      setTimeout(() => router.push("/profile"), 1200);
     } catch (err) {
       setError(err?.message || "Failed to update password");
     } finally {
