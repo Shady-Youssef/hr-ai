@@ -1,25 +1,140 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+html {
+  min-height: 100%;
+}
 
 html,
 body {
   min-height: 100%;
   scroll-behavior: smooth;
-  transition: background-color 0.35s ease, color 0.35s ease;
+  transition:
+    background-color 0.35s ease,
+    color 0.35s ease,
+    border-color 0.35s ease;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+html.light {
+  color-scheme: light;
 }
 
 .app-shell {
-  background:
-    radial-gradient(1200px 500px at 15% -10%, rgba(37, 99, 235, 0.14), transparent 60%),
-    radial-gradient(900px 400px at 85% 0%, rgba(14, 165, 233, 0.08), transparent 60%),
-    #0f172a;
+  background-color: #0a0a0a;
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(37, 99, 235, 0.18), transparent 40%),
+    radial-gradient(circle at 85% 10%, rgba(59, 130, 246, 0.1), transparent 35%);
   transition: background 0.35s ease;
 }
 
 .light .app-shell {
-  background:
-    radial-gradient(1200px 500px at 15% -10%, rgba(56, 189, 248, 0.18), transparent 60%),
-    radial-gradient(900px 400px at 85% 0%, rgba(14, 116, 144, 0.12), transparent 60%),
-    #16213a;
+  background-color: #ffffff;
+  background-image:
+    radial-gradient(circle at 12% 0%, rgba(148, 163, 184, 0.18), transparent 38%),
+    radial-gradient(circle at 88% 5%, rgba(59, 130, 246, 0.08), transparent 32%);
+  color: #0f172a;
+}
+
+.light :where(
+  .bg-\[\#0f172a\],
+  .bg-\[\#111827\],
+  .bg-\[\#1f2937\],
+  .bg-\[\#0b1220\],
+  .bg-black\/60,
+  .bg-black\/80,
+  .bg-gray-900\/60,
+  .bg-gray-900,
+  .bg-gray-800
+) {
+  background-color: #f8fafc !important;
+  background-image: none !important;
+}
+
+.light :where(
+  .border-gray-900,
+  .border-gray-800,
+  .border-gray-700,
+  .border-gray-600
+) {
+  border-color: #dbe5f0 !important;
+}
+
+.light :where(.text-gray-500, .text-gray-400, .text-gray-300) {
+  color: #475569 !important;
+}
+
+.light :where(
+  .bg-\[\#0f172a\],
+  .bg-\[\#111827\],
+  .bg-\[\#1f2937\],
+  .bg-\[\#0b1220\],
+  .bg-black\/60,
+  .bg-black\/80,
+  .bg-gray-900\/60,
+  .bg-gray-900,
+  .bg-gray-800
+) .text-white {
+  color: #0f172a !important;
+}
+
+.light .bg-blue-600,
+.light .bg-blue-700,
+.light .bg-red-600,
+.light .bg-green-600,
+.light .bg-slate-700 {
+  color: #ffffff !important;
+}
+
+.light :where(
+  [class*="dark:bg-gray-950"],
+  [class*="dark:bg-gray-900"],
+  [class*="dark:bg-gray-800"],
+  [class*="dark:bg-gray-700"]
+) {
+  background-color: #f8fafc !important;
+  background-image: none !important;
+}
+
+.light :where(
+  [class*="dark:border-gray-900"],
+  [class*="dark:border-gray-800"],
+  [class*="dark:border-gray-700"],
+  [class*="dark:border-gray-600"]
+) {
+  border-color: #dbe5f0 !important;
+}
+
+.light :where(
+  [class*="dark:text-gray-500"],
+  [class*="dark:text-gray-400"],
+  [class*="dark:text-gray-300"]
+) {
+  color: #475569 !important;
+}
+
+.light :where([class*="from-gray-800"][class*="to-gray-700"]) {
+  background-image: none !important;
+  background-color: #f1f5f9 !important;
+}
+
+.light :where(.hover\:bg-gray-800:hover, .hover\:bg-gray-700:hover, .hover\:bg-gray-900:hover) {
+  background-color: #e2e8f0 !important;
+}
+
+.light :where(.shadow-xl, .shadow-2xl, .shadow-lg) {
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08) !important;
+}
+
+.light :where(input, textarea, select) {
+  color: #0f172a;
+}
+
+.light :where(input, textarea)::placeholder {
+  color: #94a3b8;
 }
 
 @keyframes fadeIn {
