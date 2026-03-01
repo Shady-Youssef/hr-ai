@@ -6,6 +6,17 @@ import Link from "next/link";
 import { Container } from "../../components/ContainerComponent";
 import { Card } from "../../components/CardComponent";
 
+function getInitialConfirmDialog() {
+  return {
+    open: false,
+    title: "",
+    message: "",
+    confirmLabel: "Confirm",
+    confirmLabelBusy: "Working...",
+    onConfirm: null,
+  };
+}
+
 export default function CandidatesDashboard() {
   const [candidates, setCandidates] = useState([]);
   const [page, setPage] = useState(1);
@@ -19,13 +30,8 @@ export default function CandidatesDashboard() {
   const [deletingId, setDeletingId] = useState(null);
   const [toast, setToast] = useState(null);
   
-  const [confirmDialog, setConfirmDialog] = useState({
-    open: false,
-    title: "",
-    message: "",
-    confirmLabel: "Confirm",
-    onConfirm: null,
-  });
+  const [confirmDialog, setConfirmDialog] = useState(getInitialConfirmDialog);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   const itemsPerPage = 10;
 
@@ -41,7 +47,6 @@ export default function CandidatesDashboard() {
 
   // ✅ Initial fetch + Realtime subscription
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCandidates();
 
     const channel = supabase
@@ -96,31 +101,46 @@ export default function CandidatesDashboard() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const openConfirmDialog = ({ title, message, onConfirm, confirmLabel }) => {
+  const openConfirmDialog = ({
+    title,
+    message,
+    onConfirm,
+    confirmLabel,
+    confirmLabelBusy,
+  }) => {
     setConfirmDialog({
       open: true,
       title,
       message,
       confirmLabel: confirmLabel || "Confirm",
+      confirmLabelBusy: confirmLabelBusy || "Working...",
       onConfirm,
     });
   };
 
   const runConfirmDialog = async () => {
-    if (typeof confirmDialog.onConfirm === "function") {
-      await confirmDialog.onConfirm();
+    if (confirmLoading) return;
+
+    setConfirmLoading(true);
+    try {
+      if (typeof confirmDialog.onConfirm === "function") {
+        await confirmDialog.onConfirm();
+      }
+      setConfirmDialog(getInitialConfirmDialog());
+    } finally {
+      setConfirmLoading(false);
     }
-    closeConfirmDialog();
   };
 
   const closeConfirmDialog = () => {
-    setConfirmDialog({
-      open: false,
-      title: "",
-      message: "",
-      confirmLabel: "Confirm",
-      onConfirm: null,
-    });
+    if (confirmLoading) return;
+    setConfirmDialog(getInitialConfirmDialog());
+  };
+
+  const closeOnBackdrop = (event, onClose) => {
+    if (event.target === event.currentTarget) {
+      onClose();
+    }
   };
 
   const deleteCandidate = async (candidateId) => {
@@ -152,6 +172,7 @@ export default function CandidatesDashboard() {
       title: "Delete Candidate",
       message: `Are you sure you want to delete candidate ${targetLabel}? This cannot be undone.`,
       confirmLabel: "Delete",
+      confirmLabelBusy: "Deleting...",
       onConfirm: () => deleteCandidate(candidate.id),
     });
   };
@@ -549,7 +570,10 @@ export default function CandidatesDashboard() {
 
       {/* Confirmation Dialog Modal */}
       {confirmDialog.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn"
+          onClick={(event) => closeOnBackdrop(event, closeConfirmDialog)}
+        >
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden max-w-sm w-full transform transition-all p-6">
             <h3 className="text-xl font-bold mb-2">
               {confirmDialog.title}
@@ -560,15 +584,24 @@ export default function CandidatesDashboard() {
             <div className="flex justify-end gap-3 font-medium">
               <button
                 onClick={closeConfirmDialog}
-                className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 transition"
+                disabled={confirmLoading}
+                className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 transition disabled:opacity-60"
               >
                 Cancel
               </button>
               <button
                 onClick={runConfirmDialog}
-                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition"
+                disabled={confirmLoading}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {confirmDialog.confirmLabel}
+                {confirmLoading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    {confirmDialog.confirmLabelBusy}
+                  </span>
+                ) : (
+                  confirmDialog.confirmLabel
+                )}
               </button>
             </div>
           </div>

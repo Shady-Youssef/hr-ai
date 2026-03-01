@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 const THEME_KEY = "hr-ai-theme";
@@ -24,6 +24,7 @@ export default function AppLayout({ children }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [profile, setProfile] = useState(null);
   const [theme, setTheme] = useState(resolveInitialTheme);
+  const profileMenuRef = useRef(null);
 
   const pathname = usePathname();
 
@@ -115,6 +116,20 @@ export default function AppLayout({ children }) {
     setMobileOpen(false);
     setProfileOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+
+    const onPointerDown = (event) => {
+      if (!profileMenuRef.current) return;
+      if (!profileMenuRef.current.contains(event.target)) {
+        setProfileOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [profileOpen]);
 
   const logout = async () => {
     await supabase.auth.signOut();
@@ -219,7 +234,7 @@ export default function AppLayout({ children }) {
                 </span>
               )}
 
-              <div className="relative">
+              <div ref={profileMenuRef} className="relative">
                 <button
                   onClick={() => setProfileOpen(!profileOpen)}
                   className={`w-9 h-9 rounded-full transition flex items-center justify-center overflow-hidden cursor-pointer ${

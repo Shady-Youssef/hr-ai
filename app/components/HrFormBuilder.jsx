@@ -235,6 +235,12 @@ export default function HrFormBuilder() {
     }
   };
 
+  const closeOnBackdrop = (event, onClose) => {
+    if (event.target === event.currentTarget) {
+      onClose();
+    }
+  };
+
   return (
     <div className="min-h-screen p-4 md:p-8 bg-gray-50 dark:bg-gray-950">
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -535,7 +541,12 @@ export default function HrFormBuilder() {
       )}
 
       {confirmDeleteOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={(event) =>
+            closeOnBackdrop(event, () => setConfirmDeleteOpen(false))
+          }
+        >
           <div className="w-full max-w-md rounded-2xl border border-gray-800 bg-[#111827] p-6 space-y-4">
             <h3 className="text-xl font-semibold">Delete Form</h3>
             <p className="text-sm text-gray-300">
@@ -563,7 +574,12 @@ export default function HrFormBuilder() {
       )}
 
       {linkDialog.open && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={(event) =>
+            closeOnBackdrop(event, () => setLinkDialog({ open: false, value: "" }))
+          }
+        >
           <div className="w-full max-w-lg rounded-2xl border border-gray-800 bg-[#111827] p-6 space-y-4">
             <h3 className="text-xl font-semibold">Copy Form Link</h3>
             <p className="text-sm text-gray-300">
@@ -588,7 +604,10 @@ export default function HrFormBuilder() {
       )}
 
       {previewOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          onClick={(event) => closeOnBackdrop(event, () => setPreviewOpen(false))}
+        >
           <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-800 bg-[#111827] p-6 space-y-5">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -674,7 +693,10 @@ export default function HrFormBuilder() {
       )}
 
       {aiGuideOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          onClick={(event) => closeOnBackdrop(event, () => setAiGuideOpen(false))}
+        >
           <div className="w-full max-w-xl rounded-2xl border border-gray-800 bg-[#111827] p-6 space-y-4">
             <h3 className="text-xl font-semibold">AI Role Guide</h3>
             <p className="text-sm text-gray-300">

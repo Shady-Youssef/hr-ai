@@ -5,6 +5,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 const ROLE_OPTIONS = ["candidate", "hr", "admin"];
 const PAGE_SIZE = 10;
 
+function getInitialConfirmDialog() {
+  return {
+    open: false,
+    title: "",
+    message: "",
+    confirmLabel: "Confirm",
+    confirmLabelBusy: "Working...",
+    onConfirm: null,
+  };
+}
+
 function formatDate(value) {
   if (!value) return "-";
   const date = new Date(value);
@@ -43,13 +54,8 @@ export default function UsersPage() {
   const [creatingUser, setCreatingUser] = useState(false);
   const [createUserOpen, setCreateUserOpen] = useState(false);
 
-  const [confirmDialog, setConfirmDialog] = useState({
-    open: false,
-    title: "",
-    message: "",
-    confirmLabel: "Confirm",
-    onConfirm: null,
-  });
+  const [confirmDialog, setConfirmDialog] = useState(getInitialConfirmDialog);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   const [editOpen, setEditOpen] = useState(false);
   const [editingUserId, setEditingUserId] = useState(null);
@@ -96,37 +102,46 @@ export default function UsersPage() {
     setBusyByUser((prev) => ({ ...prev, [userId]: busy }));
   };
 
-  const openConfirmDialog = ({ title, message, onConfirm, confirmLabel }) => {
+  const openConfirmDialog = ({
+    title,
+    message,
+    onConfirm,
+    confirmLabel,
+    confirmLabelBusy,
+  }) => {
     setConfirmDialog({
       open: true,
       title,
       message,
       confirmLabel: confirmLabel || "Confirm",
+      confirmLabelBusy: confirmLabelBusy || "Working...",
       onConfirm,
     });
   };
 
   const runConfirmDialog = async () => {
-    if (typeof confirmDialog.onConfirm === "function") {
-      await confirmDialog.onConfirm();
+    if (confirmLoading) return;
+
+    setConfirmLoading(true);
+    try {
+      if (typeof confirmDialog.onConfirm === "function") {
+        await confirmDialog.onConfirm();
+      }
+      setConfirmDialog(getInitialConfirmDialog());
+    } finally {
+      setConfirmLoading(false);
     }
-    setConfirmDialog({
-      open: false,
-      title: "",
-      message: "",
-      confirmLabel: "Confirm",
-      onConfirm: null,
-    });
   };
 
   const closeConfirmDialog = () => {
-    setConfirmDialog({
-      open: false,
-      title: "",
-      message: "",
-      confirmLabel: "Confirm",
-      onConfirm: null,
-    });
+    if (confirmLoading) return;
+    setConfirmDialog(getInitialConfirmDialog());
+  };
+
+  const closeOnBackdrop = (event, onClose) => {
+    if (event.target === event.currentTarget) {
+      onClose();
+    }
   };
 
   const showManualAccessLink = async (actionLink, contextLabel) => {
@@ -333,6 +348,7 @@ export default function UsersPage() {
       title: "Confirm Role Change",
       message: `Change role from ${currentRole} to ${nextRole}?`,
       confirmLabel: "Change",
+      confirmLabelBusy: "Changing...",
       onConfirm: () => applyRoleChange(userId, nextRole),
     });
   };
@@ -379,6 +395,7 @@ export default function UsersPage() {
       title: "Send Access Email",
       message: `Send access/reset email to ${email}?`,
       confirmLabel: "Send",
+      confirmLabelBusy: "Sending...",
       onConfirm: () => sendResetPassword(userId, email),
     });
   };
@@ -483,6 +500,8 @@ export default function UsersPage() {
         showToast("success", "User deleted successfully.");
       }
 
+      setUsers((prev) => prev.filter((item) => item.id !== user.id));
+      setTotalUsers((prev) => Math.max(0, prev - 1));
       fetchUsers();
     } catch (err) {
       showToast("error", err.message || "Failed to delete user");
@@ -493,10 +512,12 @@ export default function UsersPage() {
 
   const requestDeleteUser = (user) => {
     const targetLabel = user.email || user.id;
+    setActionMenu(null);
     openConfirmDialog({
       title: "Delete User",
       message: `Delete user ${targetLabel}? This removes the account and all related user data.`,
       confirmLabel: "Delete",
+      confirmLabelBusy: "Deleting...",
       onConfirm: () => deleteUser(user),
     });
   };
@@ -808,22 +829,34 @@ export default function UsersPage() {
       )}
 
       {confirmDialog.open && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={(event) => closeOnBackdrop(event, closeConfirmDialog)}
+        >
           <div className="w-full max-w-md rounded-2xl border border-gray-800 bg-[#111827] p-6 space-y-4">
             <h3 className="text-xl font-semibold">{confirmDialog.title}</h3>
             <p className="text-sm text-gray-300">{confirmDialog.message}</p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={closeConfirmDialog}
-                className="rounded-lg border border-gray-700 px-4 py-2"
+                disabled={confirmLoading}
+                className="rounded-lg border border-gray-700 px-4 py-2 disabled:opacity-60"
               >
                 Cancel
               </button>
               <button
                 onClick={runConfirmDialog}
-                className="rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2"
+                disabled={confirmLoading}
+                className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed px-4 py-2"
               >
-                {confirmDialog.confirmLabel}
+                {confirmLoading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    {confirmDialog.confirmLabelBusy}
+                  </span>
+                ) : (
+                  confirmDialog.confirmLabel
+                )}
               </button>
             </div>
           </div>
@@ -831,7 +864,10 @@ export default function UsersPage() {
       )}
 
       {editOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={(event) => closeOnBackdrop(event, () => setEditOpen(false))}
+        >
           <div className="w-full max-w-lg rounded-2xl border border-gray-800 bg-[#111827] p-6 space-y-4">
             <h3 className="text-xl font-semibold">Edit User</h3>
             <div className="grid grid-cols-1 gap-3">
@@ -874,7 +910,10 @@ export default function UsersPage() {
       )}
 
       {passwordOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={(event) => closeOnBackdrop(event, () => setPasswordOpen(false))}
+        >
           <div className="w-full max-w-lg rounded-2xl border border-gray-800 bg-[#111827] p-6 space-y-4">
             <h3 className="text-xl font-semibold">Set Password</h3>
             <p className="text-sm text-gray-400">
@@ -916,7 +955,10 @@ export default function UsersPage() {
       )}
 
       {createUserOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={(event) => closeOnBackdrop(event, () => setCreateUserOpen(false))}
+        >
           <div className="w-full max-w-3xl rounded-2xl border border-gray-800 bg-[#111827] p-6 space-y-4">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-xl font-semibold">Create User</h3>
